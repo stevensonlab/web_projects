@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Shared Neural Data</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+  <style>
+    td {
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    </style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Shared Neural Data</h2>
+    <input class="form-control" id="myInput" type="text" placeholder="Search..">
+  <br>
+  <table class="table table-bordered table-striped" id="main_table">
+    <thead>
+      <tr>
+        <th>Link</th>
+        <th>Lab</th>
+        <th>Signals</th>
+        <th>Area</th>
+        <th>Species</th>
+        <th>Prep</th>
+        <th>Task/Stimuli</th>
+      </tr>
+    </thead>
+    <tbody id="myTable">
+
+    </tbody>
+  </table>
+  
+  <p><a href="https://docs.google.com/spreadsheets/d/1L_bVy5Zc9WEuTCixmyqyzLpgARzVaJsSIB1gEK9ggLM/edit?usp=sharing">Add or Edit Data</a></p>
+
+
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script type="text/javascript"charset="utf-8">
+    var parsedCSV;
+    d3.text("https://docs.google.com/spreadsheets/d/e/2PACX-1vTnUIUF8Qc8ADsh7gIaSieVK05POt5N9xYwf9HJMMOrHcmk-8U_OAR214QmF85MryskUyMNENMskw7m/pub?output=csv", function(data) {
+            parsedCSV = d3.csv.parseRows(data).slice(1);
+
+            var rows = d3.select("body").select("div").select("table").select("tbody")
+                .selectAll("tr")
+                .data(parsedCSV).enter()
+                .append("tr");
+
+            rows.append("td").append("a")
+                .attr("href",function(d) {return d[0];})
+                .text(function (d) {return d[0];});
+
+            for (i=1; i<7; i++) {
+                rows.append("td")
+                    .text(function (d) {return d[i];});
+            }
+    });
+
+
+</script>
+</div>
+
+<script>
+$(document).ready(function(){
+  $("#myInput").on("keyup", function() {
+    var value = $(this).val().toLowerCase();
+    $("#myTable tr").filter(function() {
+      $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1)
+    });
+  });
+});
+</script>
+
+</body>
+</html>
