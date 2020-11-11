@@ -46,7 +46,7 @@
 <script src="https://d3js.org/d3.v3.min.js"></script>
 <script type="text/javascript"charset="utf-8">
     var parsedCSV;
-    d3.text("https://docs.google.com/spreadsheets/d/e/2PACX-1vTnUIUF8Qc8ADsh7gIaSieVK05POt5N9xYwf9HJMMOrHcmk-8U_OAR214QmF85MryskUyMNENMskw7m/pub?output=csv", function(data) {
+    d3.text("neural_data.csv", function(data) {
             parsedCSV = d3.csv.parseRows(data).slice(1);
 
             var rows = d3.select("body").select("div").select("table").select("tbody")

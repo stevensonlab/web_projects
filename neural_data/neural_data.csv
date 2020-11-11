@@ -1,0 +1,113 @@
+Link,Lab,Signals,Area,Species,Prep,Task/Stimuli
+http://bethgelab.org/datasets/v1gratings/,Tolias/Bethge,spikes,"cortex, V1",macaque,,gratings
+http://crcns.org/data-sets/aa/aa-1,Theunissen ,spikes,avian auditory,zebra finch,,
+http://crcns.org/data-sets/aa/aa-2,Theunissen ,spikes,avian auditory,zebra finch,,
+http://crcns.org/data-sets/aa/aa-3,Fee,spikes,avian auditory,zebra finch,awake,
+http://crcns.org/data-sets/aa/am-1,Nick,spikes,avian motor,zebra finch,,
+http://crcns.org/data-sets/aa/am-2,Nick,spikes,"avian motor, HVC ",zebra finch,,
+http://crcns.org/data-sets/aa/am-3,Fee,spikes,"avian motor, HVC ",zebra finch,,singing
+http://crcns.org/data-sets/ac/ac-1,Zador,spikes,"cortex, thalamus, A1, mgb",,,
+http://crcns.org/data-sets/ac/ac-2,DeWeese ,membrane potential,"cortex, auditory",rat,,
+http://crcns.org/data-sets/aplysia/apl-1,Bruno and Frost,voltage-sensitive dye,pedal ganglion,Aplysia californica,,escape locomotion
+http://crcns.org/data-sets/brainstem/bst-1,Nossenson,spikes,IC,rats,anesthetized ,white noise
+http://crcns.org/data-sets/cb/cb-1,Zeeuw,"spikes, eyelid","cerebellum, interpositus nucleus",mouse,awake,eyeblink conditioning
+http://crcns.org/data-sets/fcx/fcx-1,Buzsaki,spikes,"cortex, mPFC, OFC, ACC, and M2",rat,,
+http://crcns.org/data-sets/hc/hc-1,Buzsáki,"spikes, intracellular",hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-10,Soltesz,membrane potential,hippocampus,,,
+http://crcns.org/data-sets/hc/hc-11,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-12,Duhamel,spikes,hippocampus,monkey,,
+http://crcns.org/data-sets/hc/hc-13,Frank,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-14,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-2,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-3,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-4,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-5,Buzsáki,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-6,Frank,spikes,hippocampus,rat,,
+http://crcns.org/data-sets/hc/hc-7,Gulyás ,,hippocampus,mouse,,
+http://crcns.org/data-sets/hc/hc-8,Beggs,spikes,hippocampus,culture,,
+http://crcns.org/data-sets/hc/hc-9,Soltesz,spikes,hippocampus,,,
+http://crcns.org/data-sets/ia/ia-1,Herz ,spikes,auditory receptor,grasshopper,,
+http://crcns.org/data-sets/lgn/lgn-1,Priebe,spikes,"thalamus, LGN",mouse,,drifting grating
+http://crcns.org/data-sets/motor-cortex/alm-1,Svoboda ,spikes,"cortex, motor, ALM",,,
+http://crcns.org/data-sets/motor-cortex/alm-2,Svoboda ,GCaMP,"cortex, motor, ALM",,,
+http://crcns.org/data-sets/motor-cortex/alm-3,Svoboda ,,"cortex, motor, ALM",,,
+http://crcns.org/data-sets/ofc/ofc-1,,spikes,"cortex, orbitofrontal",rat ,,odor discrimination
+http://crcns.org/data-sets/ofc/ofc-2,,spikes,"cortex, orbitofrontal",rat ,,odor classification
+http://crcns.org/data-sets/pc/ppc-1,VanGilder,spikes,"cortex, PPC",macaque ,,
+http://crcns.org/data-sets/pfc/pfc-1,DeWeese ,spikes,,,,
+http://crcns.org/data-sets/pfc/pfc-2,Buzsáki,spikes,"cortex, mPFC, hippocampus, CA1",,,
+http://crcns.org/data-sets/pfc/pfc-3,,spikes,"cortex, PFC",macaque ,,
+http://crcns.org/data-sets/pfc/pfc-4,,spikes,"cortex, PFC",macaque ,,
+http://crcns.org/data-sets/pfc/pfc-5,,EEG ,,human,,
+http://crcns.org/data-sets/retina/ret-1,Meister,spikes,retina,,,
+http://crcns.org/data-sets/ssc/ssc-1,Svoboda ,GCaMP,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-2,Svoboda ,Volumetric calcium,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-3,Litke,spikes,"cortex, somatosensory",mouse ,"slice, 512 electrode array",
+http://crcns.org/data-sets/ssc/ssc-4,Feldman,spikes,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-5,Svoboda,Juxtacellular ,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-6,Maravall,,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-7,Svoboda,,"cortex, somatosensory",,,
+http://crcns.org/data-sets/ssc/ssc-8,Portera-Cailliau,GCaMP,"cortex, somatosensory",,,
+http://crcns.org/data-sets/thalamus/th-1,Buzsáki,spikes,thalamus,mouse,,
+http://crcns.org/data-sets/vc/mt-1,Pack,spikes,"cortex, MT",,,
+http://crcns.org/data-sets/vc/pvc-1,Ringach ,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-10,Priebe and Zemelman,,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-11,Smith and Kohn,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-2,Dan ,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-3,Blanche,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-4,Gallant ,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-5,Hung ,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-6,Allen Institute,membrane potential,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-7,Allen Institute,GCaMP,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-8,Kohn ,spikes,"cortex, V1",,,
+http://crcns.org/data-sets/vc/pvc-9,Sáez ,,"cortex, V1",,,
+http://crcns.org/data-sets/vc/v2-1,Gallant ,spikes,"cortex, V2",,,
+http://crcns.org/data-sets/vc/vim-1,Gallant ,fMRI,,,,
+http://crcns.org/data-sets/vc/vim-2,Gallant ,fMRI,,,,
+http://crcns.org/data-sets/vc/vim-3,Mannion,fMRI,,,,
+http://datadryad.org/resource/doi:10.5061/dryad.070jc,Lalor,EEG,,human,,natural speech
+http://datadryad.org/resource/doi:10.5061/dryad.18kk6,Aizenman ,membrane potential/current,optic tectum,xenopus,,during development and plasticity
+http://datadryad.org/resource/doi:10.5061/dryad.1f1rc,Berry,spikes,retina,,,
+http://datadryad.org/resource/doi:10.5061/dryad.246qg,Balasubramanian,spikes,retina,guinea pig,30-electrode array,"white noise, natural scenes, flicker"
+http://datadryad.org/resource/doi:10.5061/dryad.2tp56,Rinzel,membrane potential,superior olive,gerbil,,
+http://datadryad.org/resource/doi:10.5061/dryad.3723p,Mansvelder,"EPSPs, membrane potential",cortex,"mouse, human",slice,short-term plasticity
+http://datadryad.org/resource/doi:10.5061/dryad.3m5v5,Tsihby?,spikes,"cortex, A1",cat,,oddball
+http://datadryad.org/resource/doi:10.5061/dryad.46st5,Rutishauser ,spikes,"cortex, MT",human,hybrid depth electrodes from human epilepsy patients,declarative memory encoding and recognition
+http://datadryad.org/resource/doi:10.5061/dryad.4ch10,Gollisch,spikes,retina,salamander,,"natural scenes, gratings"
+http://datadryad.org/resource/doi:10.5061/dryad.5b331,Hunt?,spikes,"cortex, PFC",macaque,,
+http://datadryad.org/resource/doi:10.5061/dryad.88pv1,Bendesen,spikes,MT,macaque,,multiple stimuli (random dot) in RF
+http://datadryad.org/resource/doi:10.5061/dryad.b2t22,Schultz?,spikes,"thalamus, LGN",mouse,,
+http://datadryad.org/resource/doi:10.5061/dryad.c261c,Allen?,spikes,"cortex, MEC, entorhinal cortex",,,"foraging, light/dark"
+http://datadryad.org/resource/doi:10.5061/dryad.d9v38,Euler,"OGB-1, morphological, genetic and immunohistochemical metadata","retina, rgcs",mouse,,
+http://datadryad.org/resource/doi:10.5061/dryad.qp0qv,Freeman,"EMG, LFP, spikes","hippocampus, CA1",rat,,associative learning (tone conditioned stimulus (CS) and a periorbital stimulation unconditioned stimulus (US))
+http://datadryad.org/resource/doi:10.5061/dryad.rs2qp,Baden,iGluSFR ,"retina, bipolar cells",mouse,,
+http://datadryad.org/resource/doi:10.5061/dryad.vr57b,Arleo,"spikes, eye position","cortex, anterior cingulate, dACC",macaque,,behavioral adaptation following feedback
+http://github.com/berenslab/spikefinder_analysis,SpikeFinder,"spikes, imaging",,,,
+http://neuralsignal.org/data/04/nsa2004.1.html,Movshon,spikes,"cortex, V5/MT",macaque,single unit,random dots
+http://neuralsignal.org/data/04/nsa2004.2.html,Newsome,spikes,"cortex, V5/MT",macaque,paired units,random dots
+http://neuralsignal.org/data/04/nsa2004.3.html,Movshon,spikes,"thalamus, LGN",macaque,single unit,gratings
+http://neuralsignal.org/data/04/nsa2004.4.html,Movshon,spikes,"cortex, V1",macaque,single unit,gratings
+http://neuralsignal.org/data/04/nsa2004.5.html,Reyes,membrane potential,"cortex, sensorimotor",rat,"slice, whole cell",current steps
+http://neuralsignal.org/data/04/nsa2004.6.html,Movshon,spikes,"cortex, V5/MT",macaque,single unit,"gratings, random dots"
+http://neuralsignal.org/data/07/nsa2007.1.html,Bair,spikes,"cortex, V1",macaque,single unit,bars
+http://neuralsignal.org/data/09/nsa2009.1.html,Movshon,spikes,"cortex, V5/MT",macaque,single unit,random dots
+http://neuralsignal.org/data/12/nsa2012.1.html,Newsome,spikes,"cortex, V5/MT",macaque,paired units,random dots
+http://observatory.brain-map.org/visualcoding/,Allen Institute,GCaMP6,"cortex, V1",mouse,multiple transgenic lines,"gratings, natural movies, natural scenes, sparse noise"
+http://sidcode.eu/results/datasets/12-neurophysiological-data-of-paper-shifts-of-gamma-phase-across-primary-visual-cortical-sites-reflect-dynamic-stimulus-modulated-information-transfer-published-by-besserve-et-al-in-plos-biology-2015.html,SICode,MUA,"cortex, V1",,,
+http://sidcode.eu/results/datasets/13-neurophysiological-data-of-paper-a-dynamical-model-of-the-effect-of-locus-coeruleus-firing-on-single-trial-cortical-state-dynamics-and-sensory-by-safaai-et-al-in-pnas-2015.html,SICode,MUA,"cortex, S1",rat,,LC stimulation
+"http://sidcode.eu/results/datasets/16-neurophysiological-data-collected-at-the-nets3-laboratory,-istituto-italiano-di-tecnologia-iit-,-genoa-italy.html",SICode,spikes,hippocampus culture,,4096 electrodes MEA ,
+"http://sidcode.eu/results/datasets/17-neurophysiological-data-of-leech-nervous-system-collected-at-the-vincent-torre-s-laboratory,-scuola-internazionale-superiore-di-studi-avanzati-sissa-,-trieste-italy.html",SICode,nerves,leech ganglion,leech,,
+"http://sidcode.eu/results/datasets/21-neurophysiological-data-recorded-at-the-neural-computer-interaction-lab,-istituto-italiano-di-tecnologia,-iit-,-italy.html",SICode,spikes,,,,Bidirectional BMI
+http://stg.bio.brandeis.edu,Marder,"nerves, spikes",STG,crab,,
+http://www.damtp.cam.ac.uk/user/eglen/waverepo/,Multiple (Englen),spikes,retina (developing),,,
+http://www.ntnu.edu/kavli/research/grid-cell-data,Moser,"spikes, LFP","hippocampus, entorhinal cortex",rat,,foraging
+http://www.shadlenlab.columbia.edu/resources/RoitmanDataCode.html,Shadlen,spikes,"cortex, LIP",macaque,,random dots
+http://www.ucl.ac.uk/neuropixels/examples,Neuropixels,spikes,Multiple,mouse,"awake, head-fixed",various passive visual stimuli
+http://zenodo.org/record/1009488,Georges,"GCaMP3, GCaMP5",whole-brain,Larval Zebrafish (5dpf),light-sheet fluorescence microscopy,
+http://zenodo.org/record/1063898,Crochet,LFP,"cortex, mPFC, dorsal hippocampus",mouse,pharmacological and optogenetic inactivation of medial prefrontal cortex or dorsal hippo-campus,"reward, learning"
+http://zenodo.org/record/19461,Laurent,spikes,antennal lobe,locust,tetrode ,
+http://zenodo.org/record/583331,Sabes,"spikes, hand-movement","cortex, motor, sensory, sensorimotor",macaque,multi-electrode array,self-paced reaches to targets arranged in a grid
+http://zenodo.org/record/826950,Chang,ECoG,"cortex, auditory",human,,"speech, non-speech"
+http://zenodo.org/record/837063,Lappe,"spikes, eye-movement","cortex, MST, VIP",macaque ,,optic flow
+https://figshare.com/articles/Recordings_of_ten_thousand_neurons_in_visual_cortex_during_spontaneous_behaviors/6163622,Harris/Pachitariu,deconvolved Ca2+,visual cortex,mouse,"~10,000 neurons, some interneuron labeling",spontaneous
+https://figshare.com/articles/V4_Utah_Array_Plaid_Movie_Data/12269513,Smith,"spikes, LFP","cortex, V4",macaque,Utah array,plaids
