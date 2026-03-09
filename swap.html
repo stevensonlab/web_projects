@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stereo Mic Swapper</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+            margin: 0;
+        }
+        .card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 400px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            margin: 10px;
+            transition: opacity 0.2s;
+        }
+        #startBtn { background-color: #007bff; color: white; }
+        #stopBtn { background-color: #dc3545; color: white; display: none; }
+        #status { margin-top: 15px; color: #666; font-size: 0.9rem; }
+        .warning { color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 20px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>Mic Channel Swapper</h1>
+        <p>Swaps <b>Left</b> and <b>Right</b> mic inputs to your ears in real-time.</p>
+        
+        <button id="startBtn">Start Audio</button>
+        <button id="stopBtn">Stop Audio</button>
+        
+        <div id="status">Ready. Click start to begin.</div>
+
+        <div class="warning">
+            <b>Note:</b> Most Bluetooth earbuds only support mono input. If your hardware sends a mono signal, you won't hear a "swapped" effect.
+        </div>
+    </div>
+
+    <script>
+        let audioCtx;
+        let stream;
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const status = document.getElementById('status');
+
+        startBtn.addEventListener('click', async () => {
+            try {
+                // 1. Request stereo microphone access
+                // We disable echoCancellation and noiseSuppression to prevent the browser 
+                // from forcing the signal to mono.
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 2,
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
+                    }
+                });
+
+                // 2. Initialize Web Audio Context
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioCtx.createMediaStreamSource(stream);
+
+                // 3. Create Splitter and Merger
+                // Splitter takes 1 stereo input and gives 2 mono outputs
+                const splitter = audioCtx.createChannelSplitter(2);
+                // Merger takes 2 mono inputs and combines them into 1 stereo output
+                const merger = audioCtx.createChannelMerger(2);
+
+                // 4. Connect with the SWAP
+                source.connect(splitter);
+
+                // Input Channel 0 (Left) -> Output Channel 1 (Right)
+                splitter.connect(merger, 0, 1); 
+                // Input Channel 1 (Right) -> Output Channel 0 (Left)
+                splitter.connect(merger, 1, 0); 
+
+                // 5. Output to speakers/headphones
+                merger.connect(audioCtx.destination);
+
+                // UI Update
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                status.innerText = "Audio Active: Swapping Channels...";
+                status.style.color = "green";
+
+            } catch (err) {
+                console.error(err);
+                status.innerText = "Error: " + err.message;
+                status.style.color = "red";
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (audioCtx) {
+                audioCtx.close();
+            }
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            status.innerText = "Stopped.";
+            status.style.color = "#666";
+        });
+    </script>
+</body>
+</html>
