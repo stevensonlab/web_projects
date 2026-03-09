@@ -3,124 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stereo Mic Swapper</title>
+    <title>Mic Swapper Pro</title>
     <style>
-        body {
-            font-family: system-ui, -apple-system, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f2f5;
-            margin: 0;
-        }
-        .card {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 400px;
-        }
-        button {
-            padding: 12px 24px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            border-radius: 6px;
-            margin: 10px;
-            transition: opacity 0.2s;
-        }
-        #startBtn { background-color: #007bff; color: white; }
+        body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background-color: #f4f7f6; margin: 0; }
+        .card { background: white; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 100%; max-width: 450px; }
+        select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; }
+        button { cursor: pointer; font-weight: bold; transition: background 0.2s; border: none; }
+        #startBtn { background-color: #28a745; color: white; }
         #stopBtn { background-color: #dc3545; color: white; display: none; }
-        #status { margin-top: 15px; color: #666; font-size: 0.9rem; }
-        .warning { color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 20px; font-size: 0.8rem; }
+        
+        .controls { margin: 20px 0; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #eee; }
+        .toggle-container { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+        
+        .status-box { font-size: 0.85rem; color: #555; margin-top: 15px; padding: 10px; border-radius: 4px; background: #eef2f3; }
+        .active-label { font-weight: bold; color: #007bff; }
+        
+        /* Simple Switch Style */
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #007bff; }
+        input:checked + .slider:before { transform: translateX(26px); }
     </style>
 </head>
 <body>
 
     <div class="card">
-        <h1>Mic Channel Swapper</h1>
-        <p>Swaps <b>Left</b> and <b>Right</b> mic inputs to your ears in real-time.</p>
+        <h2>Mic Swapper</h2>
         
-        <button id="startBtn">Start Audio</button>
-        <button id="stopBtn">Stop Audio</button>
-        
-        <div id="status">Ready. Click start to begin.</div>
+        <label for="micSelect">1. Select Microphone:</label>
+        <select id="micSelect">
+            <option value="">Loading microphones...</option>
+        </select>
 
-        <div class="warning">
-            <b>Note:</b> Most Bluetooth earbuds only support mono input. If your hardware sends a mono signal, you won't hear a "swapped" effect.
+        <button id="startBtn">Start Listening</button>
+        <button id="stopBtn">Stop Audio</button>
+
+        <div class="controls">
+            <div class="toggle-container">
+                <span>Swap Channels (L ↔ R)</span>
+                <label class="switch">
+                    <input type="checkbox" id="swapToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="status-box">
+            Using: <span id="activeDevice" class="active-label">None</span>
         </div>
     </div>
 
     <script>
-        let audioCtx;
-        let stream;
+        let audioCtx, stream, source, splitter, mergerNormal, mergerSwapped, outputGain;
+        const micSelect = document.getElementById('micSelect');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const status = document.getElementById('status');
+        const swapToggle = document.getElementById('swapToggle');
+        const activeDevice = document.getElementById('activeDevice');
+
+        // Initial Device Discovery
+        async function getDevices() {
+            try {
+                // Request permission first to get labels
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                micSelect.innerHTML = '';
+                devices.filter(d => d.kind === 'audioinput').forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.deviceId;
+                    opt.text = d.label || `Microphone ${micSelect.length + 1}`;
+                    micSelect.appendChild(opt);
+                });
+            } catch (err) {
+                micSelect.innerHTML = '<option>Permission Denied</option>';
+            }
+        }
+        getDevices();
 
         startBtn.addEventListener('click', async () => {
+            const deviceId = micSelect.value;
             try {
-                // 1. Request stereo microphone access
-                // We disable echoCancellation and noiseSuppression to prevent the browser 
-                // from forcing the signal to mono.
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
                         channelCount: 2,
                         echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
+                        noiseSuppression: false
                     }
                 });
 
-                // 2. Initialize Web Audio Context
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const source = audioCtx.createMediaStreamSource(stream);
+                source = audioCtx.createMediaStreamSource(stream);
+                splitter = audioCtx.createChannelSplitter(2);
+                
+                // Normal path (L->L, R->R)
+                mergerNormal = audioCtx.createChannelMerger(2);
+                // Swapped path (L->R, R->L)
+                mergerSwapped = audioCtx.createChannelMerger(2);
 
-                // 3. Create Splitter and Merger
-                // Splitter takes 1 stereo input and gives 2 mono outputs
-                const splitter = audioCtx.createChannelSplitter(2);
-                // Merger takes 2 mono inputs and combines them into 1 stereo output
-                const merger = audioCtx.createChannelMerger(2);
+                outputGain = audioCtx.createGain();
 
-                // 4. Connect with the SWAP
+                // Build Connections
                 source.connect(splitter);
 
-                // Input Channel 0 (Left) -> Output Channel 1 (Right)
-                splitter.connect(merger, 0, 1); 
-                // Input Channel 1 (Right) -> Output Channel 0 (Left)
-                splitter.connect(merger, 1, 0); 
+                // Setup Swapped Path
+                splitter.connect(mergerSwapped, 0, 1); // L to R
+                splitter.connect(mergerSwapped, 1, 0); // R to L
 
-                // 5. Output to speakers/headphones
-                merger.connect(audioCtx.destination);
+                // Setup Normal Path
+                splitter.connect(mergerNormal, 0, 0); // L to L
+                splitter.connect(mergerNormal, 1, 1); // R to R
 
-                // UI Update
+                updateRouting();
+                outputGain.connect(audioCtx.destination);
+
+                // UI updates
                 startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-                status.innerText = "Audio Active: Swapping Channels...";
-                status.style.color = "green";
+                stopBtn.style.display = 'block';
+                const track = stream.getAudioTracks()[0];
+                activeDevice.innerText = track.label;
 
             } catch (err) {
-                console.error(err);
-                status.innerText = "Error: " + err.message;
-                status.style.color = "red";
+                alert("Error: " + err.message);
             }
         });
 
+        function updateRouting() {
+            if (!audioCtx) return;
+            
+            // Disconnect both first
+            mergerNormal.disconnect();
+            mergerSwapped.disconnect();
+
+            // Connect only the selected path
+            if (swapToggle.checked) {
+                mergerSwapped.connect(outputGain);
+            } else {
+                mergerNormal.connect(outputGain);
+            }
+        }
+
+        swapToggle.addEventListener('change', updateRouting);
+
         stopBtn.addEventListener('click', () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            if (audioCtx) {
-                audioCtx.close();
-            }
-            startBtn.style.display = 'inline-block';
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            if (audioCtx) audioCtx.close();
+            startBtn.style.display = 'block';
             stopBtn.style.display = 'none';
-            status.innerText = "Stopped.";
-            status.style.color = "#666";
+            activeDevice.innerText = "None";
         });
     </script>
 </body>
