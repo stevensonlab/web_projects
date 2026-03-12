@@ -2,26 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Auditory Lab Hub</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditory Demos</title>
     <style>
          :root {
             --primary: #2563eb;
             --bg: #f8fafc;
             --sidebar-bg: #1e293b;
             --text-main: #334155;
+            --sidebar-width: 300px;
         }
 
-        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text-main); overflow: hidden; }
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            margin: 0; 
+            display: flex; 
+            height: 100vh; 
+            background: var(--bg); 
+            color: var(--text-main); 
+            overflow: hidden; 
+        }
 
         /* Sidebar Navigation */
         #sidebar {
-            width: 320px;
+            width: var(--sidebar-width);
             background: var(--sidebar-bg);
             color: white;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
             border-right: 1px solid #e2e8f0;
+            transition: transform 0.3s ease;
+            z-index: 1000;
         }
 
         #sidebar h2 { font-size: 1.2rem; padding: 20px; margin: 0; background: #0f172a; border-bottom: 1px solid #334155; }
@@ -36,7 +48,7 @@
         }
 
         .nav-item {
-            padding: 10px 20px;
+            padding: 12px 20px;
             font-size: 0.9rem;
             cursor: pointer;
             border-bottom: 1px solid #334155;
@@ -55,20 +67,77 @@
             border-radius: 4px;
             margin-left: auto;
         }
+
         /* Main Viewport */
-        #main { flex: 1; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         iframe { flex: 1; border: none; background: white; width: 100%; height: 100%; }
         
-        #header { padding: 15px 30px; background: white; border-bottom: 1px solid #e2e8f0; }
-        #header h1 { margin: 0; font-size: 1.2rem; color: #1e293b; }
+        #header { 
+            padding: 10px 20px; 
+            background: white; 
+            border-bottom: 1px solid #e2e8f0; 
+            display: flex; 
+            align-items: center;
+            gap: 15px;
+        }
+        #header h1 { margin: 0; font-size: 1.1rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Mobile Menu Toggle Button */
+        #menu-toggle {
+            display: none;
+            background: var(--sidebar-bg);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        /* Overlay for mobile */
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+        }
+
+        /* Responsive Logic */
+        @media (max-width: 768px) {
+            #sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                transform: translateX(-100%); /* Hide sidebar */
+            }
+
+            #sidebar.open {
+                transform: translateX(0); /* Show sidebar */
+            }
+
+            #menu-toggle {
+                display: block; /* Show menu button on mobile */
+            }
+
+            #overlay.visible {
+                display: block;
+            }
+            
+            #header { padding: 10px 15px; }
+        }
     </style>
 </head>
 <body>
 
+<!-- Overlay for closing menu -->
+<div id="overlay" onclick="toggleMenu()"></div>
+
 <nav id="sidebar">
     <h2>Auditory Demos</h2>
     
-    <div class="nav-item" onclick="loadDemo(0,this)">0. Introduction</div>
+    <div class="nav-item active" onclick="loadDemo(0,this)">0. Introduction</div>
     <div class="section-title">I. Frequency Analysis</div>
     <div class="nav-item functional" onclick="loadDemo(1,this)">1. Cancelled Harmonics</div>
     <div class="nav-item functional" onclick="loadDemo(2,this)">2. Critical Bands (Masking)</div>
@@ -129,28 +198,40 @@
     <div class="nav-item" onclick="loadDemo(38,this)">38. Masking Level Differences</div>        
     <div class="nav-item" onclick="loadDemo(39,this)">39. An Auditory Illusion</div>
 
-
-    <div style="padding: 20px; font-size: 0.7rem; color: #64748b;">* Items marked LIVE are interactive. Others provide theory stubs.</div>
+    <div style="padding: 20px; font-size: 0.7rem; color: #64748b; margin-top: auto;">* Items marked LIVE are interactive.</div>
 </nav>
 
 <div id="main">
-    <div id="header"><h1 id="title">0. Introduction</h1></div>
-    <!-- This is where the magic happens -->
+    <div id="header">
+        <button id="menu-toggle" onclick="toggleMenu()">☰ Menu</button>
+        <h1 id="title">0. Introduction</h1>
+    </div>
     <iframe id="demoFrame" src="demos/demo0.html"></iframe>
 </div>
 
 <script>
+    function toggleMenu() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+    }
+
     function loadDemo(id, element) {
         // Update Title
         document.getElementById('title').innerText = element.innerText;
         
         // Update Iframe Source
-        // Note: You must create these files in a /demos/ folder
         document.getElementById('demoFrame').src = `demos/demo${id}.html`;
         
         // UI Highlight
         document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
         element.classList.add('active');
+
+        // If on mobile, close the menu after selection
+        if (window.innerWidth <= 768) {
+            toggleMenu();
+        }
     }
 </script>
 </body>
