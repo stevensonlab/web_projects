@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pulsation Threshold Debugged</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
-        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        .control-group { margin-bottom: 20px; }
+        body { font-family: system-ui, sans-serif; max-width: 650px; margin: 20px auto; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
         input[type="range"] { width: 100%; cursor: pointer; }
         .val { float: right; font-family: monospace; color: #007bff; }
@@ -33,12 +33,21 @@
 
 
         canvas { width: 100%; height: 180px; background: #000; border-radius: 8px; margin-bottom: 20px; display: block; }
-        .info { font-size: 0.85rem; line-height: 1.4; color: #666; background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; }
+        .info { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #007bff; margin-bottom: 20px; }
+        .warn { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #ff7b00; margin-bottom: 20px; }
     </style>
 </head>
 <body>
 
 <div class="card">
+    <div class="info">
+        <strong>The Pulsation Threshold:</strong><br>
+        Lower the <b>Tone Level</b> slider until the tone no longer sounds like it is pulsing, but sounds like one continuous tone playing through the noise bursts.
+    </div>
+    <div class="warn">
+        <strong>WARNING: Interacting with the Tone Level slider changes the loudness.</strong>
+    </div>
+
     <canvas id="visualizer"></canvas>
     
     
@@ -64,10 +73,7 @@
         <input type="range" id="db" min="-60" max="0" value="-20">
     </div>
 
-    <div class="info">
-        <strong>The Pulsation Threshold:</strong><br>
-        Lower the <b>Tone Level</b> slider until the tone no longer sounds like it is pulsing, but sounds like one continuous tone playing through the noise bursts.
-    </div>
+    
 </div>
 
 <script>
@@ -96,7 +102,7 @@
         analyser.smoothingTimeConstant = 0.2;
 
         masterGain = audioCtx.createGain();
-        masterGain.gain.value = 0.7;
+        masterGain.gain.value = 0.2;
         masterGain.connect(analyser);
         analyser.connect(audioCtx.destination);
 

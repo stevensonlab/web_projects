@@ -97,7 +97,7 @@
             analyser.fftSize = 2048*4;
             
             masterGain = audioCtx.createGain();
-            masterGain.gain.value = 0.15;
+            masterGain.gain.value = 0.01;
 
             // Chain: Oscillators -> Harmonic Gains -> Master Gain -> Analyser -> Speakers
             masterGain.connect(analyser);
