@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear vs. Decibel Power Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 700px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 25px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.95rem; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; font-family: monospace; color: #007bff; font-size: 1.1rem; }
+        
+        .btn-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { 
+            flex: 1; padding: 15px; font-size: 1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; font-weight: bold; transition: 0.2s;
+        }
+        button.playing { background: #dc3545; }
+        button#seqBtn.playing { background: #dc3545; }
+
+        .sequence-controls {
+            background: #f9f9f9; padding: 15px; border-radius: 8px;
+            border: 1px solid #eee; margin-bottom: 20px;
+        }
+        
+        canvas { 
+            width: 100%; height: 350px; background: #fff; 
+            border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; 
+            display: block; cursor: crosshair;
+        }
+        
+        .info { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #007bff; }
+        code { background: #eee; padding: 2px 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <canvas id="plotCanvas"></canvas>
+
+    <div class="btn-row">
+        <button id="playBtn">Start Constant</button>
+        <button id="seqBtn">Start dB Steps</button>
+    </div>
+
+    <div class="control-group">
+        <label>Linear Power: <span class="val" id="linDisp">0.10</span></label>
+        <input type="range" id="linIn" min="0.001" max="1" step="0.001" value="0.100">
+    </div>
+
+    <div class="control-group">
+        <label>Power in Decibels: <span class="val" id="dbDisp">-10.0</span> dB</label>
+        <input type="range" id="dbIn" min="-30" max="0" step="0.1" value="-10">
+    </div>
+
+        <div class="control-group">
+            <table width="100%">
+            <tr><td>        
+            <label>Decrease per Step: <span class="val" id="stepDisp">3</span> dB</label>
+            <input type="range" id="stepSize" min="1" max="10" value="3">
+        </td><td>
+                    <label>Number of Steps: <span class="val" id="countDisp">5</span></label>
+            <input type="range" id="stepCount" min="2" max="10" value="5">
+        </td></tr></table>
+    </div>
+    
+    <div class="info">
+        <strong>The Mathematical Relationship:</strong><br>
+        The curve shows <code>dB = 10 * log10(Power)</code>. <br>
+        Notice that in the <b>Step Sequence</b>, each dB jump looks the same on the Y-axis, but the Linear Power jumps on the X-axis get smaller and smaller as the sound gets quieter.
+    </div>
+</div>
+
+<script>
+    let audioCtx, noiseSource, noiseGain;
+    let isPlaying = false;
+    let isSeqPlaying = false;
+    let seqTimer = null;
+    let seqStepCounter = 0;
+    let isNoiseOnInSeq = false;
+
+    const btn = document.getElementById('playBtn');
+    const seqBtn = document.getElementById('seqBtn');
+    const linIn = document.getElementById('linIn');
+    const dbIn = document.getElementById('dbIn');
+    const stepIn = document.getElementById('stepSize');
+    const countIn = document.getElementById('stepCount');
+    
+    const linDisp = document.getElementById('linDisp');
+    const dbDisp = document.getElementById('dbDisp');
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const minLinear = 0.001;
+    const maxLinear = 1.0;
+    const minDB = -30.0;
+    const maxDB = 0.0;
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = 0;
+
+        noiseSource.connect(noiseGain).connect(audioCtx.destination);
+        noiseSource.start();
+    }
+
+    function updateAudio() {
+        if (!noiseGain) return;
+        const p = parseFloat(linIn.value);
+        noiseGain.gain.setTargetAtTime(Math.sqrt(p), audioCtx.currentTime, 0.02);
+    }
+
+    function syncFromLinear() {
+        const p = parseFloat(linIn.value);
+        const db = 10 * Math.log10(p);
+        dbIn.value = db.toFixed(2);
+        updateDisplay();
+        updateAudio();
+        draw();
+    }
+
+    function syncFromDB() {
+        const db = parseFloat(dbIn.value);
+        const p = Math.pow(10, db / 10);
+        linIn.value = p.toFixed(4);
+        updateDisplay();
+        updateAudio();
+        draw();
+    }
+
+    function updateDisplay() {
+        linDisp.textContent = parseFloat(linIn.value).toFixed(3);
+        dbDisp.textContent = parseFloat(dbIn.value).toFixed(1);
+        document.getElementById('stepDisp').textContent = stepIn.value;
+        document.getElementById('countDisp').textContent = countIn.value;
+        draw();
+    }
+
+    function tick() {
+        if (!isSeqPlaying) return;
+
+        const interval = 250; 
+        const ramp = 0.01;
+
+        if (!isNoiseOnInSeq) {
+            // Noise ON Phase
+            // Sequence starts at 0dB and goes down
+            const stepSize = parseFloat(stepIn.value);
+            const targetDb = 0 - (seqStepCounter * stepSize);
+            
+            // Move the slider programmatically
+            dbIn.value = targetDb;
+            syncFromDB();
+            
+            isNoiseOnInSeq = true;
+        } else {
+            // Silence Phase
+            noiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, ramp);
+            isNoiseOnInSeq = false;
+            seqStepCounter++;
+            
+            if (seqStepCounter > parseInt(countIn.value)) {
+                seqStepCounter = 0;
+            }
+        }
+
+        seqTimer = setTimeout(tick, interval);
+    }
+
+    function stopAll() {
+        isPlaying = false;
+        isSeqPlaying = false;
+        clearTimeout(seqTimer);
+        if (noiseGain) noiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
+        btn.textContent = "Start Constant";
+        btn.classList.remove('playing');
+        seqBtn.textContent = "Start dB Steps";
+        seqBtn.classList.remove('playing');
+        draw();
+    }
+
+    function draw() {
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = canvas.offsetHeight * 2;
+        const padding = 80;
+        ctx.clearRect(0, 0, w, h);
+
+        const plotW = w - padding * 2;
+        const plotH = h - padding * 2;
+        const pVal = parseFloat(linIn.value);
+        const dbVal = parseFloat(dbIn.value);
+
+        const getX = (lin) => padding + (lin / maxLinear) * plotW;
+        const getY = (db) => padding + plotH - ((db - minDB) / (maxDB - minDB)) * plotH;
+
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padding, padding);
+        ctx.lineTo(padding, h - padding);
+        ctx.lineTo(w - padding, h - padding);
+        ctx.stroke();
+
+        ctx.fillStyle = '#666';
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Linear Power (P)', w / 2, h - 20);
+        
+        ctx.save();
+        ctx.translate(30, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Power in dB (10*log10)', 0, 0);
+        ctx.restore();
+
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        for (let i = 0; i <= 512; i++) {
+            const l = minLinear + (i / 512) * (maxLinear - minLinear);
+            const db = 10 * Math.log10(l);
+            const x = getX(l);
+            const y = getY(db);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        const curX = getX(pVal);
+        const curY = getY(dbVal);
+
+        ctx.setLineDash([10, 10]);
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(curX, h - padding); ctx.lineTo(curX, curY); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(padding, curY); ctx.lineTo(curX, curY); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Highlight the dot if audio is actually coming out
+        const isActive = isPlaying || (isSeqPlaying && isNoiseOnInSeq);
+        ctx.fillStyle = isActive ? '#dc3545' : '#aaa';
+        ctx.beginPath();
+        ctx.arc(curX, curY, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.fillStyle = '#999';
+        ctx.font = '20px monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 10; i++) {
+            const l = i / 10;
+            ctx.fillText(l.toFixed(1), getX(l), h - padding + 30);
+        }
+        ctx.textAlign = 'right';
+        for (let i = minDB; i <= maxDB; i += 10) {
+            ctx.fillText(i, padding - 15, getY(i) + 8);
+        }
+    }
+
+    btn.addEventListener('click', () => {
+        initAudio();
+        const wasPlaying = isPlaying;
+        stopAll();
+        if (!wasPlaying) {
+            isPlaying = true;
+            btn.textContent = "Stop Constant";
+            btn.classList.add('playing');
+            audioCtx.resume();
+            updateAudio();
+            draw();
+        }
+    });
+
+    seqBtn.addEventListener('click', () => {
+        initAudio();
+        const wasSeqPlaying = isSeqPlaying;
+        stopAll();
+        if (!wasSeqPlaying) {
+            isSeqPlaying = true;
+            seqStepCounter = 0;
+            isNoiseOnInSeq = false;
+            seqBtn.textContent = "Stop dB Steps";
+            seqBtn.classList.add('playing');
+            audioCtx.resume();
+            tick();
+        }
+    });
+
+    linIn.addEventListener('input', () => { if(!isSeqPlaying) syncFromLinear(); });
+    dbIn.addEventListener('input', () => { if(!isSeqPlaying) syncFromDB(); });
+    stepIn.addEventListener('input', updateDisplay);
+    countIn.addEventListener('input', updateDisplay);
+
+    window.addEventListener('resize', draw);
+    updateDisplay();
+    draw();
+</script>
+</body>
+</html>

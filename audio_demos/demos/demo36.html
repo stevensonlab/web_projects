@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binaural Beats Demo</title>
+    <style>
+        body { font-family: sans-serif; max-width: 400px; margin: 20px auto; line-height: 1.6; background: #f4f4f4; padding: 20px; }
+        .control-group { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; margin-bottom: 10px; }
+        .row { display: flex; justify-content: space-between; align-items: center; }
+        button { width: 100%; padding: 15px; font-size: 1.2rem; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 8px; }
+        button.playing { background: #dc3545; }
+        .value-display { font-family: monospace; color: #666; }
+    </style>
+</head>
+<body>
+
+    <h2>Binaural Beats</h2>
+    
+    <button id="playBtn">Start Audio</button>
+
+    <div class="control-group">
+        <label>Base Frequency (Tone 1): <span class="value-display" id="baseVal">200</span> Hz</label>
+        <input type="range" id="baseFreq" min="100" max="1000" value="200">
+        
+        <label>Beat Frequency: <span class="value-display" id="beatVal">10</span> Hz</label>
+        <input type="range" id="beatFreq" min="1" max="40" value="10">
+    </div>
+
+    <div class="control-group">
+        <div class="row">
+            <label><input type="checkbox" id="leftToggle" checked> Left Channel (Tone 1)</label>
+            <span class="value-display" id="leftVolVal">50%</span>
+        </div>
+        <input type="range" id="leftVol" min="0" max="1" step="0.01" value="0.5">
+
+        <div class="row">
+            <label><input type="checkbox" id="rightToggle" checked> Right Channel (Tone 2)</label>
+            <span class="value-display" id="rightVolVal">50%</span>
+        </div>
+        <input type="range" id="rightVol" min="0" max="1" step="0.01" value="0.5">
+    </div>
+
+    <script>
+        let audioCtx, osc1, osc2, gainL, gainR, pannerL, pannerR;
+        let isPlaying = false;
+
+        const playBtn = document.getElementById('playBtn');
+        const baseFreqInput = document.getElementById('baseFreq');
+        const beatFreqInput = document.getElementById('beatFreq');
+        const leftVolInput = document.getElementById('leftVol');
+        const rightVolInput = document.getElementById('rightVol');
+        const leftToggle = document.getElementById('leftToggle');
+        const rightToggle = document.getElementById('rightToggle');
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Left Tone Setup
+            osc1 = audioCtx.createOscillator();
+            gainL = audioCtx.createGain();
+            pannerL = audioCtx.createStereoPanner();
+            pannerL.pan.value = -1; // Hard Left
+
+            // Right Tone Setup
+            osc2 = audioCtx.createOscillator();
+            gainR = audioCtx.createGain();
+            pannerR = audioCtx.createStereoPanner();
+            pannerR.pan.value = 1; // Hard Right
+
+            // Connections: Osc -> Gain -> Panner -> Destination
+            osc1.connect(gainL).connect(pannerL).connect(audioCtx.destination);
+            osc2.connect(gainR).connect(pannerR).connect(audioCtx.destination);
+
+            osc1.start();
+            osc2.start();
+            updateFrequencies();
+            updateVolumes();
+        }
+
+        function updateFrequencies() {
+            const base = parseFloat(baseFreqInput.value);
+            const beat = parseFloat(beatFreqInput.value);
+            
+            if (osc1) osc1.frequency.value = base;
+            if (osc2) osc2.frequency.value = base + beat;
+
+            document.getElementById('baseVal').textContent = base;
+            document.getElementById('beatVal').textContent = beat;
+        }
+
+        function updateVolumes() {
+            if (!gainL || !gainR) return;
+            
+            const vL = leftToggle.checked ? parseFloat(leftVolInput.value) : 0;
+            const vR = rightToggle.checked ? parseFloat(rightVolInput.value) : 0;
+            
+            // Use ramp to avoid clicking sounds when changing values
+            gainL.gain.setTargetAtTime(vL, audioCtx.currentTime, 0.05);
+            gainR.gain.setTargetAtTime(vR, audioCtx.currentTime, 0.05);
+
+            document.getElementById('leftVolVal').textContent = Math.round(vL * 100) + "%";
+            document.getElementById('rightVolVal').textContent = Math.round(vR * 100) + "%";
+        }
+
+        playBtn.addEventListener('click', () => {
+            if (!audioCtx) initAudio();
+            
+            if (isPlaying) {
+                audioCtx.suspend();
+                playBtn.textContent = "Start Audio";
+                playBtn.classList.remove('playing');
+            } else {
+                audioCtx.resume();
+                playBtn.textContent = "Stop Audio";
+                playBtn.classList.add('playing');
+            }
+            isPlaying = !isPlaying;
+        });
+
+        // Listeners
+        baseFreqInput.addEventListener('input', updateFrequencies);
+        beatFreqInput.addEventListener('input', updateFrequencies);
+        leftVolInput.addEventListener('input', updateVolumes);
+        rightVolInput.addEventListener('input', updateVolumes);
+        leftToggle.addEventListener('change', updateVolumes);
+        rightToggle.addEventListener('change', updateVolumes);
+    </script>
+</body>
+</html>

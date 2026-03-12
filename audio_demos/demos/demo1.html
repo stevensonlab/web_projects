@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harmonic Cancellation Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 650px; margin: 20px auto; padding: 20px; background: #f0f2f5; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; }
+        input[type="range"] { width: 100%; }
+        
+        /* Visualization Styles */
+        #visualizer {
+            width: 100%;
+            height: 150px;
+            background: #222;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 10px; }
+        .toggle-btn { display: flex; flex-direction: column; align-items: center; background: #f8f9fa; border: 1px solid #ddd; padding: 8px; border-radius: 6px; }
+        .toggle-btn input { cursor: pointer; }
+        
+        button#masterPlay { 
+            width: 100%; padding: 15px; font-size: 1.1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; margin-bottom: 20px; font-weight: bold;
+        }
+        button#masterPlay.playing { background: #dc3545; }
+        .val { float: right; color: #007bff; font-family: monospace; }
+        .info { font-size: 0.8rem; color: #666; margin-top: 5px; font-style: italic; }
+        
+        .freq-display { font-family: monospace; color: #007bff; }
+        .bulk-controls { display: flex; gap: 10px; margin-top: 10px; }
+        .bulk-controls button { flex: 1; padding: 10px; border: none; border-radius: 8px; cursor: pointer; background: #6c757d; color: white; transition: opacity 0.2s; }
+        .bulk-controls button:hover { opacity: 0.8; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <p style="margin-top:0"><small>This demo plays 20 harmonics. Observe how the <b>spectrum</b> changes as you remove lower harmonics, yet the perceived <b>pitch</b> often remains the same.</small></p>
+
+        <canvas id="visualizer"></canvas>
+
+        <button id="masterPlay">Start Audio</button>
+
+        <div class="control-group">
+            <label>Fundamental Frequency: <span class="freq-display" id="freqVal">200</span> Hz</label>
+            <input type="range" id="baseFreq" min="50" max="440" value="200">
+        </div>
+
+        <label>Toggle Harmonics (1-20):</label>
+        <div class="grid" id="toggleGrid"></div>
+        
+        <div class="bulk-controls">
+            <button onclick="setAll(true)">Select All</button>
+            <button onclick="setAll(false)">Clear All</button>
+        </div>
+    </div>
+
+    <script>
+        let audioCtx;
+        let masterGain;
+        let analyser;
+        let oscillators = [];
+        let harmonicGains = [];
+        let isPlaying = false;
+
+        const baseFreqInput = document.getElementById('baseFreq');
+        const freqValDisplay = document.getElementById('freqVal');
+        const playBtn = document.getElementById('masterPlay');
+        const toggleGrid = document.getElementById('toggleGrid');
+        const canvas = document.getElementById('visualizer');
+        const canvasCtx = canvas.getContext('2d');
+
+        // Create 20 toggles
+        for (let i = 1; i <= 20; i++) {
+            const div = document.createElement('div');
+            div.className = 'toggle-btn';
+            div.innerHTML = `
+                <small>H${i}</small>
+                <input type="checkbox" id="h${i}" checked data-index="${i-1}">
+            `;
+            toggleGrid.appendChild(div);
+        }
+
+        function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Setup Analyser
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 2048*4;
+            
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.15;
+
+            // Chain: Oscillators -> Harmonic Gains -> Master Gain -> Analyser -> Speakers
+            masterGain.connect(analyser);
+            analyser.connect(audioCtx.destination);
+
+            const baseFreq = parseFloat(baseFreqInput.value);
+
+            for (let i = 1; i <= 20; i++) {
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.value = baseFreq * i;
+                
+                // If checkbox is unchecked at start, set gain to 0
+                const isChecked = document.getElementById(`h${i}`).checked;
+                g.gain.value = isChecked ? (1 / i) : 0;
+
+                osc.connect(g).connect(masterGain);
+                osc.start();
+
+                oscillators.push(osc);
+                harmonicGains.push(g);
+            }
+            
+            drawSpectrum();
+        }
+
+        function drawSpectrum() {
+            requestAnimationFrame(drawSpectrum);
+            
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            // Clear Canvas
+            canvasCtx.fillStyle = '#222';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] / 2;
+                // Color based on frequency
+                canvasCtx.fillStyle = `rgb(50, ${barHeight + 100}, 255)`;
+                canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
+            }
+        }
+
+        function updateFrequencies() {
+            const base = parseFloat(baseFreqInput.value);
+            freqValDisplay.textContent = base;
+            if (!oscillators.length) return;
+
+            oscillators.forEach((osc, i) => {
+                osc.frequency.setTargetAtTime(base * (i + 1), audioCtx.currentTime, 0.03);
+            });
+        }
+
+        function updateHarmonicState(e) {
+            if (!harmonicGains.length) return;
+            if (e.target.tagName === 'INPUT') {
+                const index = parseInt(e.target.dataset.index);
+                applyGainChange(index, e.target.checked);
+            }
+        }
+
+        function applyGainChange(index, isChecked) {
+            const targetGain = isChecked ? (1 / (index + 1)) : 0;
+            harmonicGains[index].gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.02);
+        }
+
+        function setAll(state) {
+            for (let i = 1; i <= 20; i++) {
+                const cb = document.getElementById(`h${i}`);
+                cb.checked = state;
+                if (harmonicGains.length > 0) {
+                    applyGainChange(i - 1, state);
+                }
+            }
+        }
+
+        playBtn.addEventListener('click', () => {
+            if (!audioCtx) initAudio();
+
+            if (isPlaying) {
+                audioCtx.suspend();
+                playBtn.textContent = "Start Audio";
+                playBtn.classList.remove('playing');
+            } else {
+                audioCtx.resume();
+                playBtn.textContent = "Stop Audio";
+                playBtn.classList.add('playing');
+            }
+            isPlaying = !isPlaying;
+        });
+
+        baseFreqInput.addEventListener('input', updateFrequencies);
+        toggleGrid.addEventListener('change', updateHarmonicState);
+
+        // Resize canvas resolution
+        function resize() {
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+    </script>
+</body>
+</html>

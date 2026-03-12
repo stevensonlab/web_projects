@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equal Loudness - Log-Spaced PCHIP Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        canvas { width: 100%; height: 480px; background: #fff; border: 1px solid #ddd; border-radius: 8px; cursor: crosshair; touch-action: none; }
+        .controls { display: flex; gap: 10px; margin-top: 20px; }
+        button { flex: 1; padding: 15px; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        #resetBtn { background: #eee; color: #333; }
+        #resultsBtn { background: #007bff; color: white; }
+        .info { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #007bff; margin-bottom: 20px; }
+        .warn { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #ff7b00; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="info">
+        <strong>How to use:</strong><br>
+        1. <b>Drag the blue dots</b> to match the loudness of all frequencies to the 1kHz reference.<br>
+        2. Click <b>Show Results</b> to overlay an ISO 226 curve.
+    </div>
+    <div class="warn">
+        <strong>WARNING: Interacting with this plot changes the loudness.</strong>
+    </div>
+
+    <canvas id="plotCanvas"></canvas>
+
+    <div class="controls">
+        <button id="resetBtn">Reset</button>
+        <button id="resultsBtn">Show ISO Curve</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d');
+    const resultsBtn = document.getElementById('resultsBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    const frequencies = [125, 250, 500, 1000, 2000, 4000, 8000];
+    const userDb = frequencies.map(() => 0); 
+    
+    let showIso = false;
+    let draggingIdx = -1;
+    let audioCtx, osc, gainNode;
+
+    // ISO 226:2003 Data (40 Phon)
+    const isoFreqs = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500];
+    const iso40Spl = [83.2, 78.1, 73.3, 68.8, 64.7, 60.9, 57.3, 54.1, 51.1, 48.3, 45.8, 43.5, 41.5, 39.7, 38.2, 37.0, 36.3, 36.0, 36.3, 36.0, 34.6, 32.7, 31.0, 29.8, 30.8, 34.5, 39.8, 45.5, 51.3];
+    const isoRef = 36.0; // SPL at 1kHz
+
+    // --- PCHIP Algorithm Implementation ---
+    const xLog = isoFreqs.map(f => Math.log10(f));
+    const yVal = iso40Spl;
+    const pchipSlopes = computePCHIPSlopes(xLog, yVal);
+
+    function computePCHIPSlopes(x, y) {
+        const n = x.length;
+        const h = new Array(n - 1);
+        const delta = new Array(n - 1);
+        for (let i = 0; i < n - 1; i++) {
+            h[i] = x[i + 1] - x[i];
+            delta[i] = (y[i + 1] - y[i]) / h[i];
+        }
+
+        const d = new Array(n);
+        for (let i = 1; i < n - 1; i++) {
+            if (delta[i - 1] * delta[i] <= 0) {
+                d[i] = 0;
+            } else {
+                // Weighted harmonic mean (Fritsch-Butland algorithm)
+                const w1 = 2 * h[i] + h[i - 1];
+                const w2 = h[i] + 2 * h[i - 1];
+                d[i] = (w1 + w2) / (w1 / delta[i - 1] + w2 / delta[i]);
+            }
+        }
+        // Endpoint slopes (one-sided)
+        d[0] = delta[0]; 
+        d[n - 1] = delta[n - 2];
+        return d;
+    }
+
+    function interpolatePCHIP(targetLogF) {
+        let i = xLog.findIndex(x => x >= targetLogF);
+        if (i <= 0) return yVal[0];
+        if (i >= xLog.length) return yVal[yVal.length - 1];
+        i = i - 1; 
+
+        const h = xLog[i + 1] - xLog[i];
+        const t = (targetLogF - xLog[i]) / h;
+        const t2 = t * t;
+        const t3 = t2 * t;
+
+        // Cubic Hermite basis functions
+        const h00 = 2 * t3 - 3 * t2 + 1;
+        const h10 = t3 - 2 * t2 + t;
+        const h01 = -2 * t3 + 3 * t2;
+        const h11 = t3 - t2;
+
+        return h00 * yVal[i] + h10 * h * pchipSlopes[i] + h01 * yVal[i + 1] + h11 * h * pchipSlopes[i + 1];
+    }
+
+    // --- Audio and Visuals ---
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        osc = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0;
+        osc.connect(gainNode).connect(audioCtx.destination);
+        osc.start();
+    }
+
+    function playTone(freq, db) {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const targetGain = Math.pow(10, (-45 + db) / 20);
+        osc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.02);
+        gainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.02);
+    }
+
+    function stopTone() { if (gainNode) gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1); }
+
+    const padding = 100;
+    const minDb = -15, maxDb = 15;
+    const logFMin = Math.log10(frequencies[0]);
+    const logFMax = Math.log10(frequencies[frequencies.length - 1]);
+
+    const getX = (f, w) => padding + (Math.log10(f) - logFMin) / (logFMax - logFMin) * (w - 2 * padding);
+    const getY = (db, h) => h - padding - ((db - minDb) / (maxDb - minDb)) * (h - 2 * padding);
+
+    function draw() {
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = canvas.offsetHeight * 2;
+        ctx.clearRect(0, 0, w, h);
+
+        // Grid (dB)
+        ctx.strokeStyle = '#eee';
+        ctx.lineWidth = 2;
+        ctx.textAlign = 'right';
+        ctx.font = '24px sans-serif';
+        ctx.fillStyle = '#bbb';
+        for (let db = minDb; db <= maxDb; db += 5) {
+            const y = getY(db, h);
+            ctx.beginPath(); ctx.moveTo(padding, y); ctx.lineTo(w - padding, y); ctx.stroke();
+            if (db % 10 === 0) ctx.fillText(db + ' dB', padding - 20, y + 8);
+        }
+
+        // Labels
+        ctx.textAlign = 'center';
+        frequencies.forEach((f) => {
+            ctx.fillText(f >= 1000 ? (f/1000)+'k' : f, getX(f, w), h - 25);
+        });
+
+        // ISO Curve: Querying points equally spaced on the log-scale
+        if (showIso) {
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+            ctx.lineWidth = 5;
+            const steps = 400;
+
+            for (let i = 0; i <= steps; i++) {
+                // Generate X values equally spaced in log domain
+                const queryLogF = logFMin + (i / steps) * (logFMax - logFMin);
+                const spl = interpolatePCHIP(queryLogF);
+                const db = spl - isoRef;
+
+                // Map to coordinates (linear in log domain)
+                const x = padding + (queryLogF - logFMin) / (logFMax - logFMin) * (w - 2 * padding);
+                const y = getY(db, h);
+                
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+
+        // User Line and Points
+        ctx.beginPath();
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 6;
+        frequencies.forEach((f, i) => {
+            const x = getX(f, w), y = getY(userDb[i], h);
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        frequencies.forEach((f, i) => {
+            const x = getX(f, w), y = getY(userDb[i], h);
+            ctx.fillStyle = (draggingIdx === i) ? '#0056b3' : '#007bff';
+            ctx.beginPath(); ctx.arc(x, y, draggingIdx === i ? 22 : 14, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'white'; ctx.lineWidth = 4; ctx.stroke();
+        });
+    }
+
+    function handleInteraction(e) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const x_p = (clientX - rect.left) * (canvas.width / rect.width);
+        const y_p = (clientY - rect.top) * (canvas.height / rect.height);
+
+        if (e.type === 'mousedown' || e.type === 'touchstart') {
+            frequencies.forEach((f, i) => {
+                const dist = Math.hypot(getX(f, canvas.width) - x_p, getY(userDb[i], canvas.height) - y_p);
+                if (dist < 60) draggingIdx = i;
+            });
+        }
+
+        if (draggingIdx !== -1) {
+            const h = canvas.height;
+            const relativeY = (h - padding - y_p) / (h - 2 * padding);
+            let val = minDb + relativeY * (maxDb - minDb);
+            const spl = interpolatePCHIP(Math.log10(frequencies[draggingIdx]));
+
+            userDb[draggingIdx] = Math.max(minDb, Math.min(val, Math.min(maxDb,(spl - isoRef + 10))));
+            playTone(frequencies[draggingIdx], userDb[draggingIdx]);
+            draw();
+        }
+    }
+
+    canvas.addEventListener('mousedown', handleInteraction);
+    canvas.addEventListener('touchstart', handleInteraction);
+    window.addEventListener('mousemove', handleInteraction);
+    window.addEventListener('touchmove', handleInteraction);
+    window.addEventListener('mouseup', () => { draggingIdx = -1; stopTone(); draw(); });
+    window.addEventListener('touchend', () => { draggingIdx = -1; stopTone(); draw(); });
+
+    resultsBtn.addEventListener('click', () => { showIso = !showIso; resultsBtn.textContent = showIso ? "Hide ISO Curve" : "Show ISO Curve"; draw(); });
+    resetBtn.addEventListener('click', () => { userDb.fill(0); showIso = false; resultsBtn.textContent = "Show ISO Curve"; draw(); });
+    window.addEventListener('resize', draw);
+    draw();
+</script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pulsation Threshold Debugged</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; font-family: monospace; color: #007bff; }
+        
+        .toggle-row { display: flex; gap: 20px; margin-bottom: 20px; background: #eee; padding: 10px; border-radius: 8px; }
+        .toggle-item { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; font-weight: bold; }
+
+        #indicator { 
+            text-align: center; font-weight: bold; padding: 10px; border-radius: 6px; 
+            margin-bottom: 20px; background: #ddd; transition: 0.1s; border: 1px solid #ccc;
+        }
+        .tone-active { background: #28a745 !important; color: white; border-color: #1e7e34 !important; }
+        .noise-active { background: #dc3545 !important; color: white; border-color: #bd2130 !important; }
+
+        button { 
+            width: 100%; padding: 15px; font-size: 1.1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; margin-bottom: 20px; font-weight: bold;
+        }
+        button.playing { background: #dc3545; }
+        .val { float: right; color: #007bff; font-family: monospace; }
+        .info { font-size: 0.8rem; color: #666; margin-top: 5px; font-style: italic; }
+
+
+        canvas { width: 100%; height: 180px; background: #000; border-radius: 8px; margin-bottom: 20px; display: block; }
+        .info { font-size: 0.85rem; line-height: 1.4; color: #666; background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <canvas id="visualizer"></canvas>
+    
+    
+    <button id="playBtn">Start Audio</button>
+
+    <div class="toggle-row">
+        <label class="toggle-item"><input type="checkbox" id="toneEnable" checked> Tone Enable</label>
+        <label class="toggle-item"><input type="checkbox" id="noiseEnable" checked> Noise Enable</label>
+    </div>
+
+    <div class="control-group">
+        <label>Fundamental Frequency: <span class="val" id="freqDisp">2000</span> Hz</label>
+        <input type="range" id="freq" min="400" max="4000" value="2000">
+    </div>
+
+    <div class="control-group">
+        <label>Segment Duration: <span class="val" id="durDisp">125</span> ms</label>
+        <input type="range" id="dur" min="50" max="800" value="125">
+    </div>
+
+    <div class="control-group">
+        <label>Tone Level: <span class="val" id="dbDisp">-20</span> dB</label>
+        <input type="range" id="db" min="-60" max="0" value="-20">
+    </div>
+
+    <div class="info">
+        <strong>The Pulsation Threshold:</strong><br>
+        Lower the <b>Tone Level</b> slider until the tone no longer sounds like it is pulsing, but sounds like one continuous tone playing through the noise bursts.
+    </div>
+</div>
+
+<script>
+    let audioCtx, osc, noiseSource, convolver, toneGain, noiseGain, masterGain, analyser;
+    let isPlaying = false;
+    let schedulerTimeout = null;
+    let currentStep = 0; // 0 for Tone, 1 for Noise
+
+    const FIR_TAPS = 511;
+    
+    const btn = document.getElementById('playBtn');
+    const freqIn = document.getElementById('freq');
+    const durIn = document.getElementById('dur');
+    const dbIn = document.getElementById('db');
+    const toneEnable = document.getElementById('toneEnable');
+    const noiseEnable = document.getElementById('noiseEnable');
+    const indicator = document.getElementById('indicator');
+    const canvas = document.getElementById('visualizer');
+    const canvasCtx = canvas.getContext('2d');
+
+    function initAudio() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.2;
+
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.7;
+        masterGain.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        // Tone Setup
+        osc = audioCtx.createOscillator();
+        toneGain = audioCtx.createGain();
+        toneGain.gain.value = 0;
+        osc.connect(toneGain).connect(masterGain);
+        osc.start();
+
+        // Noise Setup
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        noiseSource.loop = true;
+
+        convolver = audioCtx.createConvolver();
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = 0;
+
+        noiseSource.connect(convolver).connect(noiseGain).connect(masterGain);
+        noiseSource.start();
+
+        updateParams();
+        draw();
+    }
+
+    function sinc(x) {
+        if (x === 0) return 1;
+        return Math.sin(Math.PI * x) / (Math.PI * x);
+    }
+
+    function updateParams() {
+        if (!audioCtx) return;
+
+        const f = parseFloat(freqIn.value);
+        const bw = f * 0.125; 
+        const fs = audioCtx.sampleRate;
+
+        osc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.03);
+
+        const kernel = new Float32Array(FIR_TAPS);
+        const M = (FIR_TAPS - 1) / 2;
+        const fcLow = (f - bw / 2) / fs;
+        const fcHigh = (f + bw / 2) / fs;
+
+        for (let n = 0; n < FIR_TAPS; n++) {
+            let val = (2 * fcHigh * sinc(2 * fcHigh * (n - M))) - (2 * fcLow * sinc(2 * fcLow * (n - M)));
+            const window = 0.42 - 0.5 * Math.cos((2 * Math.PI * n) / (FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * n) / (FIR_TAPS - 1));
+            kernel[n] = val * window;
+        }
+        const irBuffer = audioCtx.createBuffer(1, FIR_TAPS, fs);
+        irBuffer.getChannelData(0).set(kernel);
+        convolver.buffer = irBuffer;
+
+        document.getElementById('freqDisp').textContent = f;
+        document.getElementById('durDisp').textContent = durIn.value;
+        document.getElementById('dbDisp').textContent = dbIn.value;
+    }
+
+    function tick() {
+        if (!isPlaying) return;
+
+        const durationMs = parseFloat(durIn.value);
+        const dbVal = parseFloat(dbIn.value);
+        const toneVol = Math.pow(10, dbVal / 20) * 0.6;
+        const noiseVol = 0.4; 
+
+        const now = audioCtx.currentTime;
+        const ramp = 0.005; // 5ms crossfade
+
+        if (currentStep === 0) {
+            // Switch to TONE
+            noiseGain.gain.setTargetAtTime(0, now, ramp);
+            toneGain.gain.setTargetAtTime(toneEnable.checked ? toneVol : 0, now, ramp);
+            currentStep = 1;
+        } else {
+            // Switch to NOISE
+            toneGain.gain.setTargetAtTime(0, now, ramp);
+            noiseGain.gain.setTargetAtTime(noiseEnable.checked ? noiseVol : 0, now, ramp);
+            currentStep = 0;
+        }
+
+        schedulerTimeout = setTimeout(tick, durationMs);
+    }
+
+    function draw() {
+        requestAnimationFrame(draw);
+        if (!analyser) return;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+
+        canvasCtx.fillStyle = '#000';
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const maxFreqDisp = 6000;
+        const binWidth = audioCtx.sampleRate / analyser.fftSize;
+        const maxIdx = Math.floor(maxFreqDisp / binWidth);
+        
+        canvasCtx.beginPath();
+        // Color based on active step
+        canvasCtx.strokeStyle = (currentStep === 1) ? '#28a745' : '#dc3545';
+        canvasCtx.lineWidth = 2;
+
+        for (let i = 0; i < maxIdx; i++) {
+            const x = (i / maxIdx) * canvas.width;
+            const y = canvas.height - (dataArray[i] / 255) * canvas.height;
+            if (i === 0) canvasCtx.moveTo(x, y);
+            else canvasCtx.lineTo(x, y);
+        }
+        canvasCtx.stroke();
+    }
+
+    btn.addEventListener('click', () => {
+        if (!audioCtx) initAudio();
+        
+        if (isPlaying) {
+            // STOP
+            isPlaying = false;
+            clearTimeout(schedulerTimeout);
+            
+            // Silence everything immediately
+            toneGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
+            noiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
+            
+            btn.textContent = "Start Audio";
+            btn.classList.remove('playing');
+        } else {
+            // START
+            isPlaying = true;
+            currentStep = 0; // Always start with tone
+            tick(); 
+            btn.textContent = "Stop Audio";
+            btn.classList.add('playing');
+        }
+    });
+
+    [freqIn, durIn, dbIn, toneEnable, noiseEnable].forEach(el => {
+        el.addEventListener('input', updateParams);
+    });
+</script>
+</body>
+</html>

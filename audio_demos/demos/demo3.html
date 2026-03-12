@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Critical Band Loudness - FIR Method</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; font-family: monospace; color: #007bff; }
+        
+        #status { 
+            text-align: center; font-weight: bold; padding: 12px; border-radius: 6px; 
+            margin-bottom: 20px; transition: 0.3s; background: #eee; border: 1px solid #ddd;
+        }
+        .ref-active { background: #007bff !important; color: white; border-color: #0056b3 !important; }
+        .var-active { background: #ffc107 !important; color: black; border-color: #e0a800 !important; }
+
+        button { 
+            width: 100%; padding: 15px; font-size: 1.1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; margin-bottom: 20px; font-weight: bold;
+        }
+        button.playing { background: #dc3545; }
+        .val { float: right; color: #007bff; font-family: monospace; }
+        .info { font-size: 0.8rem; color: #666; margin-top: 5px; font-style: italic; }
+
+        canvas { width: 100%; height: 200px; background: #000; border-radius: 8px; margin-bottom: 20px; display: block; }
+        .info { font-size: 0.85rem; line-height: 1.4; color: #666; background: #eee; padding: 15px; border-radius: 6px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <canvas id="visualizer"></canvas>
+    <button id="playBtn">Start Audio</button>
+
+    <div class="control-group">
+        <label>Center Frequency: <span class="val" id="freqDisp">1000</span> Hz</label>
+        <input type="range" id="freq" min="500" max="4000" value="1000">
+    </div>
+
+    <div class="control-group">
+        <label>Variable Bandwidth: <span class="val" id="bwDisp">150</span> Hz</label>
+        <input type="range" id="bw" min="10" max="2500" value="150">
+    </div>
+
+    <div class="info">
+        <strong>FIR Loudness Summation:</strong><br>
+        This uses a 511-tap FIR filter (100dB/octave slope). We alternate every 200ms between a 15% BW reference and your Variable BW selection.<br><br>
+        <strong>What to notice:</strong> The physical power is constant. As you increase the bandwidth, notice the spectrum gets "flatter" to compensate. Once the bandwidth exceeds the <b>Critical Band</b>, the sound will perceptually grow louder.
+    </div>
+</div>
+
+<script>
+    let audioCtx, noiseSource, masterGain, analyser;
+    let refConv, varConv, refGain, varGain;
+    let isPlaying = false;
+    let toggleTimer;
+    let currentMode = 'ref';
+    let pulseState = 0;
+
+    const FIR_TAPS = 511; 
+    
+    const btn = document.getElementById('playBtn');
+    const freqIn = document.getElementById('freq');
+    const bwIn = document.getElementById('bw');
+    const statusDisp = document.getElementById('status');
+    const canvas = document.getElementById('visualizer');
+    const canvasCtx = canvas.getContext('2d');
+
+    function initAudio() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 4096;
+        analyser.smoothingTimeConstant = 0.3;
+
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.7;
+        masterGain.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        // Generate White Noise Buffer
+        const bufferSize = 3 * audioCtx.sampleRate;
+        const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = noiseBuffer;
+        noiseSource.loop = true;
+
+        // Reference Path
+        refConv = audioCtx.createConvolver();
+        refGain = audioCtx.createGain();
+        refGain.gain.value = 0;
+
+        // Variable Path
+        varConv = audioCtx.createConvolver();
+        varGain = audioCtx.createGain();
+        varGain.gain.value = 0;
+
+        // Route: Source -> Both Filters -> Respective Gains -> Master
+        noiseSource.connect(refConv).connect(refGain).connect(masterGain);
+        noiseSource.connect(varConv).connect(varGain).connect(masterGain);
+        
+        noiseSource.start();
+        updateParams();
+        startToggleLoop();
+        draw();
+    }
+
+    function sinc(x) {
+        if (x === 0) return 1;
+        return Math.sin(Math.PI * x) / (Math.PI * x);
+    }
+
+    function createFIRBuffer(f, bw) {
+        const fs = audioCtx.sampleRate;
+        const kernel = new Float32Array(FIR_TAPS);
+        const M = (FIR_TAPS - 1) / 2;
+        const fcLow = (f - bw / 2) / fs;
+        const fcHigh = (f + bw / 2) / fs;
+
+        for (let n = 0; n < FIR_TAPS; n++) {
+            let val = (2 * fcHigh * sinc(2 * fcHigh * (n - M))) - (2 * fcLow * sinc(2 * fcLow * (n - M)));
+            // Blackman window for 100dB rejection
+            const window = 0.42 - 0.5 * Math.cos((2 * Math.PI * n) / (FIR_TAPS - 1)) + 0.08 * Math.cos((4 * Math.PI * n) / (FIR_TAPS - 1));
+            kernel[n] = val * window;
+        }
+
+        const irBuffer = audioCtx.createBuffer(1, FIR_TAPS, fs);
+        irBuffer.getChannelData(0).set(kernel);
+        return irBuffer;
+    }
+
+    function updateParams() {
+        if (!audioCtx) return;
+
+        const f = parseFloat(freqIn.value);
+        const bwVar = parseFloat(bwIn.value);
+        const bwRef = f * 0.15; 
+
+        refConv.buffer = createFIRBuffer(f, bwRef);
+        varConv.buffer = createFIRBuffer(f, bwVar);
+
+        document.getElementById('freqDisp').textContent = f;
+        document.getElementById('bwDisp').textContent = bwVar;
+    }
+
+    function startToggleLoop() {
+        toggleTimer = setInterval(() => {
+            if (!isPlaying) return;
+
+            const f = parseFloat(freqIn.value);
+            const bwVar = parseFloat(bwIn.value);
+            const bwRef = f * 0.15;
+            
+            // Base Amplitude for constant power: Amp = 1 / sqrt(BW)
+            // We scale relative to a fixed factor so it's audible
+            const baseScale = 25; 
+            const ampRef = baseScale / Math.sqrt(bwRef);
+            const ampVar = baseScale / Math.sqrt(bwRef);
+
+            const now = audioCtx.currentTime;
+            const fade = 0.02; // 20ms crossfade to prevent clicks
+
+            if (pulseState % 4 === 0) {
+                refGain.gain.linearRampToValueAtTime(ampRef, now + fade);
+                varGain.gain.linearRampToValueAtTime(0, now + fade);
+                currentMode = 'ref';
+            } else if (pulseState % 4 === 2) {
+                refGain.gain.linearRampToValueAtTime(0, now + fade);
+                varGain.gain.linearRampToValueAtTime(ampVar, now + fade);
+                currentMode = 'var';
+            } else {
+                refGain.gain.linearRampToValueAtTime(0, now + fade);
+                varGain.gain.linearRampToValueAtTime(0, now + fade);
+                currentMode = 'zero';
+            }
+            pulseState++;
+
+        }, 500);
+    }
+
+    function draw() {
+        requestAnimationFrame(draw);
+        if (!analyser) return;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+
+        canvasCtx.fillStyle = '#000';
+        canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const maxFreqDisp = 6000;
+        const binWidth = audioCtx.sampleRate / analyser.fftSize;
+        const maxIdx = Math.floor(maxFreqDisp / binWidth);
+        
+        canvasCtx.beginPath();
+        canvasCtx.strokeStyle = (currentMode === 'ref') ? '#007bff' : '#ffc107';
+        canvasCtx.lineWidth = 2;
+
+        for (let i = 0; i < maxIdx; i++) {
+            const x = (i / maxIdx) * canvas.width;
+            const y = canvas.height - (dataArray[i] / 255) * canvas.height;
+            if (i === 0) canvasCtx.moveTo(x, y);
+            else canvasCtx.lineTo(x, y);
+        }
+        canvasCtx.stroke();
+    }
+
+    btn.addEventListener('click', () => {
+        if (!audioCtx) initAudio();
+        if (isPlaying) {
+            audioCtx.suspend();
+            btn.textContent = "Start Audio";
+        } else {
+            audioCtx.resume();
+            btn.textContent = "Stop Audio";
+        }
+        btn.classList.toggle('playing');
+        isPlaying = !isPlaying;
+    });
+
+    [freqIn, bwIn].forEach(el => el.addEventListener('input', updateParams));
+</script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filtered Noise Lab</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 600px; margin: 20px auto; padding: 20px; background: #f8f9fa; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        canvas { width: 100%; height: 200px; background: #111; border-radius: 8px; margin-bottom: 20px; display: block; }
+        .controls { display: grid; gap: 15px; }
+        .slider-group { display: block; }
+        .hidden { display: none; }
+        label { display: block; font-weight: bold; font-size: 0.9rem; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        select { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1rem; background: white; }
+        button { 
+            width: 100%; padding: 15px; font-size: 1.1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; margin-bottom: 20px; font-weight: bold;
+        }
+        button.playing { background: #dc3545; }
+        .val { float: right; color: #007bff; font-family: monospace; }
+        .info { font-size: 0.8rem; color: #666; margin-top: 5px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <canvas id="viz"></canvas>
+
+    <button id="playBtn">Start Audio</button>
+
+    <div class="controls">
+        <div>
+            <label>Filter Type</label>
+            <select id="filterType">
+                <option value="white">White Noise (No Filter)</option>
+                <option value="lowpass">Low-Pass Filter</option>
+                <option value="highpass">High-Pass Filter</option>
+                <option value="bandpass" selected>Band-Pass Filter</option>
+            </select>
+        </div>
+
+        <!-- Frequency Slider: Shown for LP, HP, and BP -->
+        <div id="freqContainer" class="slider-group">
+            <label id="freqLabel">Center Frequency: <span class="val" id="freqVal">1000</span> Hz</label>
+            <input type="range" id="freq" min="40" max="10000" step="1" value="1000">
+        </div>
+
+        <!-- Q Slider: ONLY shown for Band-Pass -->
+        <div id="qContainer" class="slider-group">
+            <label>Bandpass Q (Sharpness): <span class="val" id="qVal">1.0</span></label>
+            <input type="range" id="qFactor" min="0.1" max="20" step="0.1" value="1.0">
+            <div class="info">Constant Q: Sharpness stays same as you move frequency.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let audioCtx, noiseNode, filterNode, masterGain;
+    let isPlaying = false;
+
+    const canvas = document.getElementById('viz');
+    const ctx = canvas.getContext('2d');
+    const btn = document.getElementById('playBtn');
+    const filterSelect = document.getElementById('filterType');
+    const freqIn = document.getElementById('freq');
+    const qIn = document.getElementById('qFactor');
+    const freqContainer = document.getElementById('freqContainer');
+    const qContainer = document.getElementById('qContainer');
+
+    function resizeCanvas() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function createNoiseBuffer(ctx) {
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        return buffer;
+    }
+
+    async function initAudio() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        noiseNode = audioCtx.createBufferSource();
+        noiseNode.buffer = createNoiseBuffer(audioCtx);
+        noiseNode.loop = true;
+
+        filterNode = audioCtx.createBiquadFilter();
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = 0.15;
+
+        noiseNode.connect(filterNode).connect(masterGain).connect(audioCtx.destination);
+        noiseNode.start();
+        
+        updateFilter();
+    }
+
+    function updateFilter() {
+        if (!filterNode) return;
+
+        const type = filterSelect.value;
+        const freq = parseFloat(freqIn.value);
+        const qValue = parseFloat(qIn.value);
+
+        // Visibility Logic: 
+        // 1. Hide everything if White Noise
+        // 2. Hide Q if Low-Pass or High-Pass
+        freqContainer.classList.toggle('hidden', type === 'white');
+        qContainer.classList.toggle('hidden', type !== 'bandpass');
+        
+        document.getElementById('freqVal').textContent = freq;
+        document.getElementById('qVal').textContent = qValue.toFixed(1);
+        
+        // Update Label Text
+        document.getElementById('freqLabel').firstChild.textContent = 
+            (type === 'bandpass' ? "Center Frequency: " : "Cut-off Frequency: ");
+
+        if (type === 'white') {
+            filterNode.type = 'allpass';
+        } else {
+            filterNode.type = type;
+
+            if (isPlaying) {
+                // smooth transition
+                filterNode.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.03);
+                
+                if (type === 'bandpass') {
+                    filterNode.Q.setTargetAtTime(qValue, audioCtx.currentTime, 0.03);
+                } else {
+                    // For LP and HP, we use a fixed Q of 0.707 (Butterworth)
+                    filterNode.Q.setTargetAtTime(-3, audioCtx.currentTime, 0.03);
+                }
+            } else {
+                filterNode.frequency.value = freq;
+                
+                if (type === 'bandpass') {
+                    filterNode.Q.value = qValue;
+                } else {
+                    // For LP and HP, we use a fixed Q of 0.707 (Butterworth)
+                    filterNode.Q.value = -3;
+                }
+            }
+        }
+    }
+
+    function draw() {
+        requestAnimationFrame(draw);
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, w, h);
+
+        if (!filterNode) return;
+
+        const freqArray = new Float32Array(w);
+        const magResponse = new Float32Array(w);
+        const phaseResponse = new Float32Array(w);
+
+        for (let i = 0; i < w; i++) {
+            // Logarithmic scale for visualizer
+            freqArray[i] = 20 * Math.pow(20000 / 20, i / w);
+        }
+
+        filterNode.getFrequencyResponse(freqArray, magResponse, phaseResponse);
+
+        ctx.beginPath();
+        ctx.strokeStyle = isPlaying ? '#00ffcc' : '#444';
+        ctx.lineWidth = 3;
+
+        for (let i = 0; i < w; i++) {
+            const x = i;
+            const y = h - (magResponse[i] * (h / 1.1)); 
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        ctx.fillStyle = '#666';
+        ctx.font = '10px monospace';
+        ctx.fillText('20Hz', 5, h - 10);
+        ctx.fillText('20kHz', w - 40, h - 10);
+    }
+
+    btn.addEventListener('click', async () => {
+        if (!audioCtx) await initAudio();
+
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+            isPlaying = true;
+            btn.textContent = "Stop Audio";
+            btn.classList.add('playing');
+        } else {
+            await audioCtx.suspend();
+            isPlaying = false;
+            btn.textContent = "Start Audio";
+            btn.classList.remove('playing');
+        }
+    });
+
+    filterSelect.addEventListener('change', updateFilter);
+    freqIn.addEventListener('input', updateFilter);
+    qIn.addEventListener('input', updateFilter);
+
+    initAudio();
+    audioCtx.suspend();
+    isPlaying = false;
+    draw();
+</script>
+</body>
+</html>

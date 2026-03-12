@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Auditory Lab Hub</title>
+    <style>
+         :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --sidebar-bg: #1e293b;
+            --text-main: #334155;
+        }
+
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); color: var(--text-main); overflow: hidden; }
+
+        /* Sidebar Navigation */
+        #sidebar {
+            width: 320px;
+            background: var(--sidebar-bg);
+            color: white;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #e2e8f0;
+        }
+
+        #sidebar h2 { font-size: 1.2rem; padding: 20px; margin: 0; background: #0f172a; border-bottom: 1px solid #334155; }
+        
+        .section-title {
+            padding: 15px 20px 5px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #94a3b8;
+            background: rgba(0,0,0,0.1);
+        }
+
+        .nav-item {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-bottom: 1px solid #334155;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-item:hover { background: #334155; }
+        .nav-item.active { background: var(--primary); color: white; }
+        .nav-item.functional::after {
+            content: "LIVE";
+            font-size: 0.6rem;
+            background: #10b981;
+            padding: 2px 4px;
+            border-radius: 4px;
+            margin-left: auto;
+        }
+        /* Main Viewport */
+        #main { flex: 1; display: flex; flex-direction: column; }
+        iframe { flex: 1; border: none; background: white; width: 100%; height: 100%; }
+        
+        #header { padding: 15px 30px; background: white; border-bottom: 1px solid #e2e8f0; }
+        #header h1 { margin: 0; font-size: 1.2rem; color: #1e293b; }
+    </style>
+</head>
+<body>
+
+<nav id="sidebar">
+    <h2>Auditory Demos</h2>
+    
+    <div class="nav-item" onclick="loadDemo(0,this)">0. Introduction</div>
+    <div class="section-title">I. Frequency Analysis</div>
+    <div class="nav-item functional" onclick="loadDemo(1,this)">1. Cancelled Harmonics</div>
+    <div class="nav-item functional" onclick="loadDemo(2,this)">2. Critical Bands (Masking)</div>
+    <div class="nav-item functional" onclick="loadDemo(3,this)">3. Critical Bands (Loudness)</div>
+
+    <div class="section-title">II. Pressure, Power, Loudness</div>
+    <div class="nav-item functional" onclick="loadDemo(4,this)">4. The Decibel Scale</div>
+    <div class="nav-item functional" onclick="loadDemo(5,this)">5. Filtered Noise</div>
+    <div class="nav-item functional" onclick="loadDemo(6,this)">6. Frequency Response of the Ear</div>
+    <div class="nav-item functional" onclick="loadDemo(7,this)">7. Loudness Scaling</div>
+    <div class="nav-item functional" onclick="loadDemo(8,this)">8. Temporal Integration</div>
+
+    <div class="section-title">III. Masking</div>
+    <div class="nav-item" onclick="loadDemo(9,this)">9. Asymmetry of Masking</div>
+    <div class="nav-item" onclick="loadDemo(10,this)">10. Forward/Backward Masking</div>
+    <div class="nav-item functional" onclick="loadDemo(11,this)">11. Pulsation Threshold</div>
+
+    <div class="section-title">IVa. Pitch - Pure Tones</div>
+    <div class="nav-item" onclick="loadDemo(12,this)">12. Pitch and Intensity</div>
+    <div class="nav-item" onclick="loadDemo(13,this)">13. Salience vs Duration</div>
+    <div class="nav-item" onclick="loadDemo(14,this)">14. Influence of Masking Noise on Pitch</div>
+    <div class="nav-item" onclick="loadDemo(15,this)">15. Octave matching</div>
+    <div class="nav-item" onclick="loadDemo(16,this)">16. Stretched and Compressed Scales</div>
+    <div class="nav-item" onclick="loadDemo(17,this)">17. Difference Limen (JND)</div>
+    <div class="nav-item" onclick="loadDemo(18,this)">18. Linear and Logarithmic Tone Scales</div>       
+    <div class="nav-item" onclick="loadDemo(19,this)">19. Pitch Streaming</div>
+
+    <div class="section-title">IVb. Pitch - Complex Tones</div>
+    <div class="nav-item" onclick="loadDemo(20,this)">20. Virtual Pitch</div>
+    <div class="nav-item" onclick="loadDemo(21,this)">21. Shift of Virtual Pitch</div>
+    <div class="nav-item" onclick="loadDemo(22,this)">22. Masking Spectral and Virtual Pitch</div>
+    <div class="nav-item" onclick="loadDemo(23,this)">23. Virtual Pitch with Random Harmonics</div>
+    <div class="nav-item" onclick="loadDemo(24,this)">24. Strike Note of a Chime</div>
+    <div class="nav-item" onclick="loadDemo(25,this)">25. Analytic vs Synthetic Pitch</div>
+
+    <div class="section-title">IVc. Pitch - Repetition Pitch</div>
+    <div class="nav-item" onclick="loadDemo(26,this)">26. Scales with Repetition Pitch</div>
+
+    <div class="section-title">IVd. Pitch - Pitch Paradox</div>
+    <div class="nav-item" onclick="loadDemo(27,this)">27. Circularity (Shepard Tone)</div>
+
+    <div class="section-title">V. Timbre</div>
+    <div class="nav-item" onclick="loadDemo(28,this)">28. Effect of Spectrum on Timbre</div>
+    <div class="nav-item" onclick="loadDemo(29,this)">29. Effect of Tone Envelope on Timbre</div>
+    <div class="nav-item" onclick="loadDemo(30,this)">30. Change in Timbre with Transposition</div>
+    <div class="nav-item" onclick="loadDemo(31,this)">31. Tones and Tuning with Stretched Partials</div>
+
+    <div class="section-title">VI. Beats, Combination Tones, Distortion, Echoes</div>
+    <div class="nav-item" onclick="loadDemo(32,this)">32. Primary and Secondary beats</div>
+    <div class="nav-item" onclick="loadDemo(33,this)">33. Distortion</div>
+    <div class="nav-item" onclick="loadDemo(34,this)">34. Aural Combination Tones</div>
+    <div class="nav-item" onclick="loadDemo(35,this)">35. Effects of Echoes</div>
+
+
+    <div class="section-title">VII. Binaural Effects</div>
+    <div class="nav-item functional" onclick="loadDemo(36,this)">36. Binaural Beats</div>
+    <div class="nav-item" onclick="loadDemo(37,this)">37. Binaural Lateralization</div>
+    <div class="nav-item" onclick="loadDemo(38,this)">38. Masking Level Differences</div>        
+    <div class="nav-item" onclick="loadDemo(39,this)">39. An Auditory Illusion</div>
+
+
+    <div style="padding: 20px; font-size: 0.7rem; color: #64748b;">* Items marked LIVE are interactive. Others provide theory stubs.</div>
+</nav>
+
+<div id="main">
+    <div id="header"><h1 id="title">0. Introduction</h1></div>
+    <!-- This is where the magic happens -->
+    <iframe id="demoFrame" src="demos/demo0.html"></iframe>
+</div>
+
+<script>
+    function loadDemo(id, element) {
+        // Update Title
+        document.getElementById('title').innerText = element.innerText;
+        
+        // Update Iframe Source
+        // Note: You must create these files in a /demos/ folder
+        document.getElementById('demoFrame').src = `demos/demo${id}.html`;
+        
+        // UI Highlight
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        element.classList.add('active');
+    }
+</script>
+</body>
+</html>

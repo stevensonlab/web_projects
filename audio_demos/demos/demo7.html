@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subjective Loudness Demo - Multiple Models</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 750px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 25px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.95rem; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; font-family: monospace; color: #007bff; font-size: 1.1rem; }
+        
+        .btn-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { 
+            flex: 1; padding: 12px; font-size: 0.9rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; font-weight: bold; transition: 0.2s;
+        }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        button.active { background: #dc3545; }
+        .capture-btn { background: #6f42c1; }
+
+        canvas { 
+            width: 100%; height: 420px; background: #fff; 
+            border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; 
+            display: block;
+        }
+        
+        #indicator { 
+            text-align: center; font-weight: bold; padding: 10px; border-radius: 6px; 
+            margin-bottom: 15px; background: #eee; border: 1px solid #ddd; height: 20px;
+        }
+        .ref-state { background: #e7f3ff !important; color: #007bff; }
+        .test-state { background: #fff3cd !important; color: #856404; }
+
+        .info { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #007bff; margin-bottom: 20px; }
+        .warn { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #ff7b00; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="info">
+        <strong>How to use:</strong><br>
+        • <b>Blue Line (Slope 0.1):</b> Stevens' Power Law ($S \propto I^{0.3}$). Doubling happens every 10 dB.<br>
+        • <b>Red Line (Slope 0.166):</b> Loudness proportional to Pressure ($S \propto P$). Doubling happens every 6 dB.
+    </div>
+    <div class="warn">
+        <strong>WARNING: Interacting with this plot changes the loudness.</strong>
+    </div>
+
+    <canvas id="loudnessPlot"></canvas>
+    
+    <div id="indicator">Audio Stopped</div>
+
+    <div class="btn-row">
+        <button id="playBtn">Start Sequence</button>
+        <button id="capHalf" class="capture-btn" disabled>Capture "Half"</button>
+        <button id="capDouble" class="capture-btn" disabled>Capture "Double"</button>
+    </div>
+
+    <div class="control-group">
+        <label>Test Level (Relative to Ref): <span class="val" id="testDisp">0.0</span> dB</label>
+        <input type="range" id="testIn" min="-20" max="20" step="0.1" value="0">
+        <div style="font-size: 0.8rem; color: #888; margin-top: 5px;">Ref is fixed at 0.0 dB.</div>
+    </div>
+
+    
+</div>
+
+<script>
+    let audioCtx, noiseSource, noiseGain;
+    let isPlaying = false;
+    let sequenceTimeout;
+    let seqIndex = 0; 
+
+    const REF_GAIN_DB = -30;
+    let matchedHalf = null;
+    let matchedDouble = null;
+
+    const canvas = document.getElementById('loudnessPlot');
+    const ctx = canvas.getContext('2d');
+    const playBtn = document.getElementById('playBtn');
+    const capHalf = document.getElementById('capHalf');
+    const capDouble = document.getElementById('capDouble');
+    const testIn = document.getElementById('testIn');
+    const testDisp = document.getElementById('testDisp');
+    const indicator = document.getElementById('indicator');
+
+    function initAudio() {
+        if (audioCtx) return;
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = 0;
+
+        noiseSource.connect(noiseGain).connect(audioCtx.destination);
+        noiseSource.start();
+    }
+
+    function runSequence() {
+        if (!isPlaying) return;
+
+        const now = audioCtx.currentTime;
+        const ramp = 0.01;
+        let nextDelay = 700;
+
+        noiseGain.gain.setTargetAtTime(0, now, ramp);
+        indicator.className = "";
+
+        if (seqIndex === 0) {
+            const gain = Math.pow(10, REF_GAIN_DB / 20);
+            noiseGain.gain.setTargetAtTime(gain, now, ramp);
+            indicator.textContent = "REFERENCE (0 dB)";
+            indicator.className = "ref-state";
+            nextDelay = 700;
+            seqIndex = 1;
+        } 
+        else if (seqIndex === 1) {
+            indicator.textContent = "";
+            nextDelay = 250;
+            seqIndex = 2;
+        }
+        else if (seqIndex === 2) {
+            const deltaDb = parseFloat(testIn.value);
+            const gain = Math.pow(10, (REF_GAIN_DB + deltaDb) / 20);
+            noiseGain.gain.setTargetAtTime(gain, now, ramp);
+            indicator.textContent = `TEST (${deltaDb > 0 ? '+':''}${deltaDb.toFixed(1)} dB)`;
+            indicator.className = "test-state";
+            nextDelay = 700;
+            seqIndex = 3;
+        }
+        else {
+            indicator.textContent = "";
+            nextDelay = 1000;
+            seqIndex = 0;
+        }
+
+        sequenceTimeout = setTimeout(runSequence, nextDelay);
+    }
+
+    function draw() {
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = canvas.offsetHeight * 2;
+        const pad = 90;
+        ctx.clearRect(0, 0, w, h);
+
+        const plotW = w - pad * 2;
+        const plotH = h - pad * 2;
+
+        const getX = (db) => pad + ((db + 30) / 60) * plotW;
+        const getY = (logL) => pad + plotH - ((logL + 2) / 4) * plotH;
+
+        ctx.strokeStyle = '#eee';
+        ctx.lineWidth = 2;
+        ctx.font = '20px monospace';
+        ctx.fillStyle = '#aaa';
+
+        for (let db = -25; db <= 25; db += 10) {
+            const x = getX(db);
+            ctx.beginPath(); ctx.moveTo(x, pad); ctx.lineTo(x, h - pad); ctx.stroke();
+            ctx.textAlign = 'center';
+            ctx.fillText(db, x, h - pad + 35);
+        }
+
+        const labels = { "-1": "Half", "0": "Ref", "1": "Double", "2": "4x", "-2": "1/4x"};
+        for (let l = -2; l <= 2; l++) {
+            const y = getY(l);
+            ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(w - pad, y); ctx.stroke();
+            ctx.textAlign = 'right';
+            ctx.fillText(labels[l] || l, pad - 15, y + 8);
+        }
+
+        // Stevens' Power Law Line (Slope 0.1)
+        ctx.strokeStyle = 'rgba(0, 123, 255, 0.5)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(getX(-20), getY(-2.0)); 
+        ctx.lineTo(getX(20), getY(2.0));
+        ctx.stroke();
+
+        // Power/Pressure Line (Slope 0.166)
+        ctx.strokeStyle = 'rgba(220, 53, 69, 0.4)';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.moveTo(getX(-12), getY(-2.0)); 
+        ctx.lineTo(getX(12), getY(2.0));
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Legend
+        ctx.font = 'bold 18px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#007bff'; ctx.fillText("Stevens (Slope 0.1)", pad + 10, pad + 30);
+        ctx.fillStyle = '#dc3545'; ctx.fillText("Pressure (Slope 0.166)", pad + 10, pad + 60);
+
+        // Reference Center
+        ctx.fillStyle = '#333';
+        ctx.beginPath(); ctx.arc(getX(0), getY(0), 10, 0, Math.PI * 2); ctx.fill();
+
+        // Data Points
+        if (matchedHalf !== null) {
+            ctx.fillStyle = '#6f42c1';
+            ctx.beginPath(); ctx.arc(getX(matchedHalf), getY(-1), 14, 0, Math.PI * 2); ctx.fill();
+        }
+        if (matchedDouble !== null) {
+            ctx.fillStyle = '#28a745';
+            ctx.beginPath(); ctx.arc(getX(matchedDouble), getY(1), 14, 0, Math.PI * 2); ctx.fill();
+        }
+
+        ctx.fillStyle = '#666';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("Relative Power (dB)", w/2, h - 15);
+        ctx.save();
+        ctx.translate(25, h/2); ctx.rotate(-Math.PI/2);
+        ctx.fillText("Subjective Loudness (log2)", 0, 0);
+        ctx.restore();
+    }
+
+    playBtn.addEventListener('click', () => {
+        initAudio();
+        if (isPlaying) {
+            isPlaying = false;
+            clearTimeout(sequenceTimeout);
+            noiseGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.05);
+            playBtn.textContent = "Start Sequence";
+            playBtn.classList.remove('active');
+            indicator.textContent = "Audio Stopped";
+            indicator.className = "";
+            capHalf.disabled = true; capDouble.disabled = true;
+        } else {
+            isPlaying = true;
+            seqIndex = 0;
+            runSequence();
+            playBtn.textContent = "Stop Sequence";
+            playBtn.classList.add('active');
+            capHalf.disabled = false; capDouble.disabled = false;
+        }
+    });
+
+    capHalf.addEventListener('click', () => { matchedHalf = parseFloat(testIn.value); draw(); });
+    capDouble.addEventListener('click', () => { matchedDouble = parseFloat(testIn.value); draw(); });
+
+    testIn.addEventListener('input', () => {
+        testDisp.textContent = parseFloat(testIn.value).toFixed(1);
+        if (isPlaying && seqIndex === 3) { 
+            const deltaDb = parseFloat(testIn.value);
+            const gain = Math.pow(10, (REF_GAIN_DB + deltaDb) / 20);
+            noiseGain.gain.setTargetAtTime(gain, audioCtx.currentTime, 0.02);
+        }
+    });
+
+    window.addEventListener('resize', draw);
+    draw();
+</script>
+</body>
+</html>

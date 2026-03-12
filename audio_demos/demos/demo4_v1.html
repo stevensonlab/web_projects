@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linear vs. Decibel Power Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 700px; margin: 20px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .control-group { margin-bottom: 25px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 0.95rem; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        .val { float: right; font-family: monospace; color: #007bff; font-size: 1.1rem; }
+        
+        button { 
+            width: 100%; padding: 15px; font-size: 1.1rem; border: none; 
+            border-radius: 8px; cursor: pointer; background: #007bff; 
+            color: white; margin-bottom: 20px; font-weight: bold;
+        }
+        button.playing { background: #dc3545; }
+        .val { float: right; color: #007bff; font-family: monospace; }
+        .info { font-size: 0.8rem; color: #666; margin-top: 5px; font-style: italic; }
+        
+        canvas { 
+            width: 100%; height: 350px; background: #fff; 
+            border: 1px solid #ddd; border-radius: 8px; margin-bottom: 20px; 
+            display: block; cursor: crosshair;
+        }
+        
+        .info { font-size: 0.85rem; line-height: 1.5; color: #555; background: #f0f4f8; padding: 15px; border-radius: 6px; border-left: 5px solid #007bff; }
+        code { background: #eee; padding: 2px 4px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <canvas id="plotCanvas"></canvas>
+
+    <button id="playBtn">Start Audio</button>
+
+    <div class="control-group">
+        <label>Linear Power: <span class="val" id="linDisp">0.10</span></label>
+        <input type="range" id="linIn" min="0.001" max="1" step="0.01" value="0.100">
+    </div>
+
+    <div class="control-group">
+        <label>Power in Decibels: <span class="val" id="dbDisp">-10.0</span> dB</label>
+        <input type="range" id="dbIn" min="-30" max="0" step="0.01" value="-10">
+    </div>
+
+    <div class="info">
+        <strong>The Mathematical Relationship:</strong><br>
+        The curve shows <code>dB = 10 * log10(Power)</code>. <br>
+        Notice that at high power levels, a large change in linear units is required to move the dB level slightly. Conversely, at low power levels, tiny linear changes result in massive dB drops. Our hearing follows this logarithmic logic!
+    </div>
+</div>
+
+<script>
+    let audioCtx, noiseSource, noiseGain;
+    let isPlaying = false;
+
+    const btn = document.getElementById('playBtn');
+    const linIn = document.getElementById('linIn');
+    const dbIn = document.getElementById('dbIn');
+    const linDisp = document.getElementById('linDisp');
+    const dbDisp = document.getElementById('dbDisp');
+    const canvas = document.getElementById('plotCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Bounds for the plot
+    const minLinear = 0.001;
+    const maxLinear = 1.0;
+    const minDB = -30.0;
+    const maxDB = 0.0;
+
+    function initAudio() {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const bufferSize = 2 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = buffer;
+        noiseSource.loop = true;
+
+        noiseGain = audioCtx.createGain();
+        noiseGain.gain.value = 0.15;
+        updateAudio();
+
+        noiseSource.connect(noiseGain).connect(audioCtx.destination);
+        noiseSource.start();
+    }
+
+    function updateAudio() {
+        if (!noiseGain) return;
+        const p = parseFloat(linIn.value);
+        // Amplitude = sqrt(Power)
+        noiseGain.gain.setTargetAtTime(Math.sqrt(p), audioCtx.currentTime, 0.02);
+    }
+
+    function syncFromLinear() {
+        const p = parseFloat(linIn.value);
+        const db = 10 * Math.log10(p);
+        dbIn.value = db.toFixed(1);
+        updateDisplay();
+        updateAudio();
+        draw();
+    }
+
+    function syncFromDB() {
+        const db = parseFloat(dbIn.value);
+        const p = Math.pow(10, db / 10);
+        linIn.value = p.toFixed(4);
+        updateDisplay();
+        updateAudio();
+        draw();
+    }
+
+    function updateDisplay() {
+        linDisp.textContent = parseFloat(linIn.value).toFixed(2);
+        dbDisp.textContent = parseFloat(dbIn.value).toFixed(1);
+    }
+
+    function draw() {
+        // Set internal resolution
+        const w = canvas.width = canvas.offsetWidth * 2;
+        const h = canvas.height = canvas.offsetHeight * 2;
+        const padding = 80;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const plotW = w - padding * 2;
+        const plotH = h - padding * 2;
+
+        const pVal = parseFloat(linIn.value);
+        const dbVal = parseFloat(dbIn.value);
+
+        // Map values to coordinates
+        const getX = (lin) => padding + (lin / maxLinear) * plotW;
+        const getY = (db) => padding + plotH - ((db - minDB) / (maxDB - minDB)) * plotH;
+
+        // Draw Axes
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padding, padding);
+        ctx.lineTo(padding, h - padding);
+        ctx.lineTo(w - padding, h - padding);
+        ctx.stroke();
+
+        // Axis Labels
+        ctx.fillStyle = '#666';
+        ctx.font = '24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Linear Power (P)', w / 2, h - 20);
+        
+        ctx.save();
+        ctx.translate(30, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('Power in dB (10*log10)', 0, 0);
+        ctx.restore();
+
+        // Draw Curve
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        for (let i = 0; i <= 512; i++) {
+            const l = minLinear + (i / 512) * (maxLinear - minLinear);
+            const db = 10 * Math.log10(l);
+            const x = getX(l);
+            const y = getY(db);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Draw Crosshair lines
+        const curX = getX(pVal);
+        const curY = getY(dbVal);
+
+        ctx.setLineDash([10, 10]);
+        ctx.strokeStyle = '#aaa';
+        ctx.lineWidth = 2;
+
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(curX, h - padding);
+        ctx.lineTo(curX, curY);
+        ctx.stroke();
+
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(padding, curY);
+        ctx.lineTo(curX, curY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Dot
+        if (isPlaying) {
+            ctx.fillStyle = '#dc3545';
+        } else {
+            ctx.fillStyle = '#aaa';
+        }
+        ctx.beginPath();
+        ctx.arc(curX, curY, 15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Scale Ticks
+        ctx.fillStyle = '#999';
+        ctx.font = '20px monospace';
+        ctx.textAlign = 'center';
+        for (let i = 0; i <= 10; i++) {
+            const l = i / 10;
+            ctx.fillText(l.toFixed(1), getX(l), h - padding + 30);
+        }
+        ctx.textAlign = 'right';
+        for (let i = minDB; i <= maxDB; i += 10) {
+            ctx.fillText(i, padding - 15, getY(i) + 8);
+        }
+    }
+
+    btn.addEventListener('click', () => {
+        if (!audioCtx) initAudio();
+        if (isPlaying) {
+            audioCtx.suspend();
+            btn.textContent = "Start Audio";
+        } else {
+            audioCtx.resume();
+            btn.textContent = "Stop Audio";
+        }
+        btn.classList.toggle('playing');
+        isPlaying = !isPlaying;
+        draw();
+    });
+
+    linIn.addEventListener('input', syncFromLinear);
+    dbIn.addEventListener('input', syncFromDB);
+
+    // Responsive redraw
+    window.addEventListener('resize', draw);
+    
+    // Initial State
+    updateDisplay();
+    draw();
+</script>
+</body>
+</html>
